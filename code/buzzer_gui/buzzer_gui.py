@@ -1,0 +1,27 @@
+import serial
+
+# Open the serial port connected to the ESP32-C3
+ser = serial.Serial('/dev/ttyACM0', 115200)  # Change '/dev/ttyUSB0' to the correct serial port on your system
+
+# Function to send data to the ESP32-C3
+def getValue_on():
+    ser.write(b'on')
+    # esp32_data = ser.readline().decode().strip()
+    esp32_data = ser.readline().decode('ascii')
+    return esp32_data
+
+
+def getValue_off():
+    ser.write(b'off')
+    esp32_data = ser.readline().decode('ascii')
+    return esp32_data
+
+
+while(1):
+    input_value = input("Enter on or off: ")
+    if input_value == 'on':
+        print(getValue_on())
+    elif input_value == 'off':
+        print(getValue_off())
+    else:
+        print("Invalid input")
