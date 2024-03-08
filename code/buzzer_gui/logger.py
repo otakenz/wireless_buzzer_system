@@ -74,7 +74,7 @@ class mvLogger:
         elif level == 2:
             message = s + " - [INFO] - " + message
         elif level == 3:
-            message = s + "- [WARNING] - " + message
+            message = s + " - [WARNING] - " + message
             theme = self.warning_theme
         elif level == 4:
             message = s + " - [ERROR] - " + message
