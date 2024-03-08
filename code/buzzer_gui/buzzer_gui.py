@@ -1,21 +1,22 @@
-import logging
 import serial
 import serial.tools.list_ports
-import threading
-import time
 import dearpygui.dearpygui as dpg
 import subprocess
+import ast
+from logger import mvLogger
+import argparse
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-
-selected_port = ""  # Store the selected COM port
-reset_button_id = None  # Store the ID of the reset button
-log_text_id = None  # Store the ID of the log text
-
-# Define your conditions here
+serial_port = None  # Store the serial port object
 condition_met = False  # Change this based on your actual conditions
 
+online_bg_color = (128, 128, 128)
+offline_bg_color = (50, 50, 50)
+online_bg_color = (128, 128, 128)
+winner_bg_color = (0, 255, 0)
+
+buttons_bssid = []
+
+# Define your conditions here
 if condition_met:
     # Define the path to your MP4 file
     mp4_file_path = "/path/to/your/video.mp4"
@@ -30,11 +31,22 @@ if condition_met:
 else:
     print("Conditions not met. Skipping opening the MP4 file.")
 
-def log_message(message):
-    global log_text_id
-    current_log = dpg.get_value(log_text_id)
-    updated_log = current_log + message + "\n"
-    dpg.set_value(log_text_id, updated_log)
+def log_info(message):
+    global logx
+    logx.log_info(message)
+
+def log_debug(message):
+    global logx
+    logx.log_debug(message)
+
+def log_warning(message):
+    global logx
+    logx.log_warning(message)
+
+def log_error(message):
+    global logx
+    logx.log_error(message)
+
 
 def find_esp32_ports():
     ports_found = {}  # Create a dictionary to store the COM port of the ESP32 device
@@ -44,186 +56,133 @@ def find_esp32_ports():
             ports_found[port.device] = port.serial_number
     return ports_found
 
-def on_select(sender):
-    global selected_port, reset_button_id
+def on_port_select(sender):
     selected_port = dpg.get_value(sender)
-    log_message(f"Selected port: {selected_port}")
-    if reset_button_id is not None:
-        dpg.configure_item(reset_button_id, enabled=bool(selected_port))
+    log_info(f"Selected port: {selected_port}")
 
 def on_port_select_button_click():
-    global selected_port
+    global serial_port
+    selected_port = dpg.get_value("port_selection")
+    # Convert the selected port from a string back to a tuple
+    selected_port = ast.literal_eval(selected_port)[0]
     if selected_port == "":
-        log_message("No port selected")
+        log_warning("No port selected")
         return
 
-    log_message(f"Opening serial connection to port: {selected_port}")
-    ser = serial.Serial(selected_port, 115200)
+    dpg.configure_item("reset_button", enabled=True)
+    log_info("Reset button enabled")
 
-    esp32_data = ser.readline().decode('ascii')
-    print(esp32_data)
+    log_info(f"Opening serial connection to port: {selected_port}")
 
-def on_reset_click():
-    global selected_port, reset_button_id
-    selected_port = ""
-    log_message("Port selection reset")
-    if reset_button_id is not None:
-        dpg.configure_item(reset_button_id, enabled=False)
-    reset_gui_inputs()  # Reset all GUI inputs
-    reset_table_cells()
-#    clear_table_cell(0,2)
+    serial_port = serial.Serial(selected_port, 115200)
+    esp32_data = serial_port.readline().decode('utf-8')
+    log_debug(f"Data received from ESP32: {esp32_data}")
 
-def reset_gui_inputs():
-    # Reset all GUI inputs here
-    dpg.set_value("Ports", "")  # Reset port selection
-    # Add more GUI items to reset as needed
-
-def clear_table_cell(row_index, column_index):
-    item_id = f"TableItem{row_index}_{column_index}"
-    dpg.set_value(item_id, "")
-
-def reset_table_cells():
-    # Reset table cells here
-    dpg.delete_item("Table", children_only=True)
-
-    with dpg.table("Table", header_row=True, row_background=False,
-                   borders_innerH=True, borders_outerH=True, borders_innerV=True,
-                   borders_outerV=True):
-        
-        # Re-populate the table with the default structure
-        dpg.add_table_column(label="Labels")
-        dpg.add_table_column(label="Button 1")
-        dpg.add_table_column(label="Button 2")
-        dpg.add_table_column(label="Button 3")
-        dpg.add_table_column(label="Button 4")
-        dpg.add_table_column(label="Button 5")
-
-        for i in range(0, 6):  # row
-            with dpg.table_row():
-                for j in range(0, 6):  # column
-                    # print labels
-                    if j == 0:
-                        if i == 0:
-                            dpg.add_text(f"Fastest button")
-                        elif i == 1:
-                            dpg.add_text(f"MAC Address")
-                        elif i == 2:
-                            dpg.add_text(f"RSSI")
-                        elif i == 3:
-                            dpg.add_text(f"Battery")
-                        elif i == 4:
-                            dpg.add_text(f"")
-                        elif i == 5:
-                            dpg.add_text(f"")
-                    if j==3 and i==2:
-                        dpg.add_text(f"RSSI", parent=table_id)
- #                   else:
- #                       if i == 0:
- #                           # add winning conditions here
- #                           if j == 1:
- #                               dpg.add_text(f"FASTEST", color=(0, 255, 0, 255))
- #                           # add losing conditions here
- #                           else:
- #                               dpg.add_text(f"SLOW", color=(255, 0, 0, 255))
- #                       else:
- #                           dpg.add_text("")
 
 def update_ports_combo():
-    global reset_button_id
-    while True:
-        time.sleep(2)  # Update every 2 seconds (adjust as needed)
-        esp32_ports = find_esp32_ports()
-        port_names = list(esp32_ports.keys())
+    esp32_ports = find_esp32_ports()
+    port_names = list(esp32_ports.items())
+    dpg.configure_item("port_selection", items=port_names)
 
-        if len(esp32_ports) == 0:
-            dpg.configure_item("Ports", items=[], default_value="")
-            if reset_button_id is not None:
-                dpg.configure_item(reset_button_id, enabled=False)
-            continue
+def update_button_status():
+    if serial_port is None:
+        return
 
-        dpg.configure_item("Ports", items=port_names)
-        if reset_button_id is not None:
-            dpg.configure_item(reset_button_id, enabled=bool(selected_port))
+    if serial_port.in_waiting == 0:
+        return
 
-def buttons_status_table():
-    with dpg.table(label="Table", header_row=True, row_background=False,
-                borders_innerH=True, borders_outerH=True, borders_innerV=True,
-                borders_outerV=True):
+    esp32_data = serial_port.readline().decode('utf-8').strip("\n")
+    log_debug(f"Data received from ESP32: {esp32_data}")
 
-        # use add_table_column to add columns to the table, 6x6
-        dpg.add_table_column(label="Labels")
-        dpg.add_table_column(label="Button 1")
-        dpg.add_table_column(label="Button 2")
-        dpg.add_table_column(label="Button 3")
-        dpg.add_table_column(label="Button 4")
-        dpg.add_table_column(label="Button 5")
+    # Message format: Slave BSSID: 30:AE:A4:1A:2B:3C, length: 31
+    if "Slave BSSID:" in esp32_data[0:13] and len(esp32_data) == 31:
+        esp32_data = esp32_data[12:]
+        if esp32_data not in buttons_bssid and len(buttons_bssid) < 5:
+            log_info(f"Adding button with BSSID: {esp32_data}")
+            dpg.configure_item(f'button_bssid_{len(buttons_bssid)+1}', text=f"BSSID:{esp32_data}")
+            dpg.configure_item(f'button_shape_{len(buttons_bssid)+1}', color=online_bg_color, fill=online_bg_color)
+            buttons_bssid.append(esp32_data)
 
-        # printing table contents
-        for i in range(0, 6): # row
-            with dpg.table_row():
-                for j in range(0, 6): # column
-                    # print labels
-                    if j==0:
-                        if i==0:
-                            dpg.add_text(f"Fastest button")
-                        elif i==1:
-                            dpg.add_text(f"MAC Address")
-                        elif i==2:
-                            dpg.add_text(f"RSSI")
-                        elif i==3:
-                            dpg.add_text(f"Battery")
-                        elif i==4:
-                            dpg.add_text(f"")
-                        elif i==5:
-                            dpg.add_text(f"")
-                        continue
-                    
-                    # print details
-                    # print fastest buzzer                    
-                    else:
-                        if i==0:
-                        # add winning conditions here
-                            if j==1:
-                                dpg.add_text(f"FASTEST", color = (0, 255, 0, 255))
-                            # add losing conditions here
-                            else:
-                                dpg.add_text(f"SLOW", color = (255, 0, 0, 255))
-                        continue
-        for i in range(0, 6): # row
-            with dpg.table_row():
-                for j in range(0, 6): # column
-                    item = f"TableItem{i}_{j}"
-                    dpg.add_text(label="", id=item)
-    
-def main():
-    global reset_button_id, log_text_id
+def get_bssid():
+    if serial_port is None:
+        return
+    serial_port.write(b'0')
+
+
+def on_ping_button_clicked(sender):
+    id = int(sender[-1])
+
+    if id > len(buttons_bssid):
+        log_warning(f"Button {id} does not exist")
+        return
+
+    if dpg.is_item_hovered(sender):
+        if serial_port is not None:
+            serial_port.write(f"ping {buttons_bssid[id-1]}\n".encode('utf-8'))
+            get_bssid()
+            serial_port.readline().decode('ascii')
+            log_info(f"Pinging button {id}")
+            dpg.configure_item(f'button_shape_{id}', color=winner_bg_color, fill=winner_bg_color)
+        else:
+            log_warning(f"Serial port not open, unable to ping button {id}")
+
+def on_reset_click():
+    for i in range(1, len(buttons_bssid)+1):
+        dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
+
+def main(log_level):
+    global logx
+
+    text_color = (255, 255, 255)
+    text_size = 15
+
     dpg.create_context()
-    dpg.create_viewport()
+    dpg.create_viewport(title='MT24 Buzzer', width=1280, height=1080, x_pos=2000, y_pos=100)
     dpg.setup_dearpygui()
 
-    with dpg.window(label="MT24 Buzzer", width=1250, height=750):
+    # with dpg.window(label="MT24 Buzzer", width=1250, height=750):
+    with dpg.window(label="COM", no_close=True, width=500, height=130, pos=(0, 0)):
         dpg.add_text("Select the COM port of the ESP32 device:")
         with dpg.group(horizontal=True):
-            ports_combo = dpg.add_combo(label="Ports", tag='Ports', items=[], callback=on_select)
-            dpg.add_button(label="Select", callback=on_port_select_button_click)
+            dpg.add_combo(label="Ports", tag='port_selection', items=[], callback=on_port_select)
+            dpg.add_button(label="Select", tag='port_select_button', callback=on_port_select_button_click)
 
         with dpg.group(horizontal=True):
-            reset_button_id = dpg.add_button(label="RESET", callback=on_reset_click, enabled=False, width=100, height=50)
+            dpg.add_button(label="RESET", tag='reset_button', callback=on_reset_click, enabled=False, width=100, height=50)
 
-        buttons_status_table()
 
-        # Create a child container for the real-time logging
-        with dpg.child(width=400, height=300):
-            with dpg.group(horizontal=True):
-                log_text_id = dpg.add_text("")
-                dpg.add_same_line()
+    with dpg.window(label="Buzzer Status", tag="buzzer_list", pos=(0, 150), width=1280, height=300, no_close=True):
+        with dpg.group(horizontal=True, horizontal_spacing=10):
+            for i in range(1,6):
+                with dpg.drawlist(width=240, height=200, pos=(200*(i), 0), tag=f'button_drawlist_{i}', callback=on_ping_button_clicked):
+                    x, y = 10, 20
+                    dpg.draw_rectangle((0, 0), (240, 200), tag=f'button_shape_{i}', color=offline_bg_color, fill=offline_bg_color)
+                    dpg.draw_text((50, y), f"Button {i}", color=text_color, size=text_size, tag=f'button_text_{i}')
+                    dpg.draw_text((x, y+30), "Status:", color=text_color, size=text_size, tag=f'button_status_{i}')
+                    dpg.draw_text((x, y+60), "BSSID:", color=text_color, size=text_size, tag=f'button_bssid_{i}')
+                    dpg.draw_text((x, y+90), "RSSI:", color=text_color, size=text_size, tag=f'button_rssi_{i}')
+                    dpg.draw_text((x, y+120), "Battery:", color=text_color, size=text_size, tag=f'button_battery_{i}')
+
+
+    with dpg.window(label="Logging", tag="log", pos=(0, 470), width=1280, height=300, no_close=True):
+        logx = mvLogger(parent="log")
+        logx.log_level = log_level
 
     dpg.show_viewport()
 
-    # Start a thread to update the COM port list
-    threading.Thread(target=update_ports_combo, daemon=True).start()
+    # below replaces, start_dearpygui()
+    while dpg.is_dearpygui_running():
+        # insert here any code you would like to run in the render loop
+        update_ports_combo()
+        update_button_status()
+        dpg.render_dearpygui_frame()
 
-    dpg.start_dearpygui()
+    dpg.destroy_context()
+
+    # dpg.start_dearpygui()
 
 if __name__ == "__main__":
-    main()
+    args = argparse.ArgumentParser(description="MT24 Buzzer GUI")
+    args.add_argument("--log_level", type=int, default=2, help="Log level")
+    args = args.parse_args()
+    main(args.log_level)
