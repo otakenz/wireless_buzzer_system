@@ -118,6 +118,7 @@ def update_button_status():
                 break
         log_debug(f"Winner SSID: {winner_ssid[1]} not found in the list of buttons")
 
+
 def ping_button_location(button_id):
     if not (serial_port is not None and serial_port.is_open):
         return
@@ -154,7 +155,7 @@ def on_scan_click(sender):
         return
 
     serial_port.write(b's')
-    log_info("Scanning for buttons")
+    log_info("Scanning to update buttons data")
 
     scanning_buttons()
 

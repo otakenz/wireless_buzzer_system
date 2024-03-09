@@ -1,3 +1,4 @@
+#include "HWCDC.h"
 #include "custom_print.h"
 #include <WiFi.h>
 #include <cstdint>
@@ -203,7 +204,6 @@ void ScanForSlave() {
       }
     }
     pcData.RSSI[SlaveCnt] = RSSI;
-    pcData.battery_level[SlaveCnt] = 0;
     memcpy(&pcData.buttons_mac[SlaveCnt], slaves[SlaveCnt].peer_addr, 6);
 
     slaves[SlaveCnt].channel = CHANNEL; // pick a channel
@@ -243,6 +243,15 @@ String macToString(const uint8_t *mac) {
   return String(macStr);
 }
 
+bool compareMacAddress(const uint8_t *mac1, const uint8_t *mac2) {
+  for (int i = 0; i < 6; ++i) {
+    if (mac1[i] != mac2[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // callback when data is sent from Master to Slave
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   char macStr[18];
@@ -268,17 +277,25 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
   memcpy(&buttonData, incomingData, sizeof(buttonData));
   print("Battery Level: ");
   println(buttonData.battery_level);
-  someone_has_pressed = true;
 
-  controllerData.pressed = true;
-  controllerData.ping = false;
-  memcpy(controllerData.winner_mac, mac_addr, 6);
+  for (uint8_t i = 0; i < regSlavesCnt; i++) {
+    auto isRegisteredSlave = compareMacAddress(mac_addr, pcData.buttons_mac[i]);
+    if (isRegisteredSlave) {
+      pcData.battery_level[i] = buttonData.battery_level;
+      Serial.println("BAT;" + String(buttonData.battery_level));
 
-  Serial.println("WSSID;" + String(macStr));
+      someone_has_pressed = true;
+      controllerData.pressed = true;
+      controllerData.ping = false;
+      memcpy(controllerData.winner_mac, mac_addr, 6);
 
-  esp_err_t result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
-                                  sizeof(controllerData));
-  check_esp_err(result);
+      Serial.println("WSSID;" + String(macStr));
+
+      esp_err_t result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
+                                      sizeof(controllerData));
+      check_esp_err(result);
+    }
+  }
 }
 
 void ping_button(const uint8_t *mac_addr) {
@@ -320,7 +337,8 @@ void loop() {
 
     // Scan for slaves
     if (msg == 's') {
-      memset(&pcData, 0, sizeof(pcData));
+      pcData.RSSI[0] = 0;
+      memset(&pcData.buttons_mac, 0, sizeof(pcData.buttons_mac));
       ScanForSlave();
       for (int i = 0; i < regSlavesCnt; i++) {
         Serial.println("ID;" + String(i) + "|" + "SSID;" +

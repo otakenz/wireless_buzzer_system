@@ -113,7 +113,7 @@ void sendButtonData() {
   /* buttonData.battery_level = get_battery_voltage(); */
   buttonData.battery_level = random(0, 100);
   // Send message via ESP-NOW
-  println("Sending: " + String(buttonData.battery_level));
+  println("Sending battery level: " + String(buttonData.battery_level));
 
   esp_err_t result =
       esp_now_send(controller, (uint8_t *)&buttonData, sizeof(buttonData));
@@ -254,7 +254,7 @@ void setup() {
    * FALLING); */
   read_button_timer = timerBegin(0, 80, true);
   timerAttachInterrupt(read_button_timer, &onButtonTimer, true);
-  timerAlarmWrite(read_button_timer, 50000, true);
+  timerAlarmWrite(read_button_timer, 20000, true);
   timerAlarmEnable(read_button_timer);
 }
 
