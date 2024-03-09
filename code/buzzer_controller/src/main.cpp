@@ -4,14 +4,14 @@
 #include <esp_now.h>
 
 // Global copy of slave
-#define NUMSLAVES 10
+#define NUMSLAVES 5
 #define CHANNEL 11
 
 bool someone_has_pressed = false;
 
 typedef struct struct_message_button {
   uint8_t local_mac[6];
-  float battery_level;
+  uint8_t battery_level;
 } struct_message_button;
 
 typedef struct struct_message_controller {
@@ -19,12 +19,24 @@ typedef struct struct_message_controller {
   uint8_t winner_mac[6];
 } struct_message_controller;
 
+typedef struct struct_message_pc {
+  uint8_t winner_mac[6];
+  uint8_t buttons_mac[NUMSLAVES][6];
+  uint8_t battery_level[NUMSLAVES];
+  int32_t RSSI[NUMSLAVES];
+} struct_message_pc;
+
 struct_message_button buttonData;
 struct_message_controller controllerData;
+struct_message_pc pcData;
 esp_now_peer_info_t broadcastInfo;
 
 esp_now_peer_info_t slaves[NUMSLAVES] = {};
 int SlaveCnt = 0;
+int regSlavesCnt = 0;
+String SSID = "";
+int32_t RSSI = 0;
+String BSSIDstr = "";
 
 constexpr char buttons_ssid[] = {"Slave:DC:54:75:5D:AE:C8"
                                  "Slave:DC:54:75:62:06:18"
@@ -34,6 +46,42 @@ constexpr char buttons_ssid[] = {"Slave:DC:54:75:5D:AE:C8"
                                  "Slave:64:E8:33:80:BE:FC"};
 
 constexpr uint8_t broadcast_mac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+void check_esp_err(esp_err_t result) {
+  print("Send Status: ");
+  switch (result) {
+  case ESP_OK:
+    println("Pair success");
+    break;
+  case ESP_ERR_ESPNOW_FULL:
+    println("Peer list full");
+    break;
+  case ESP_ERR_ESPNOW_EXIST:
+    println("Peer Exists");
+    break;
+  case ESP_ERR_ESPNOW_NOT_INIT:
+    println("ESPNOW not Init.");
+    break;
+  case ESP_ERR_ESPNOW_ARG:
+    println("Invalid Argument");
+    break;
+  case ESP_ERR_ESPNOW_INTERNAL:
+    println("Internal Error");
+    break;
+  case ESP_ERR_ESPNOW_NO_MEM:
+    println("ESP_ERR_ESPNOW_NO_MEM");
+    break;
+  case ESP_ERR_ESPNOW_NOT_FOUND:
+    println("Peer not found.");
+    break;
+  case ESP_ERR_ESPNOW_IF:
+    println("Interface error.");
+    break;
+  default:
+    println("Not sure what happened");
+    break;
+  }
+}
 
 // Init ESP Now with fallback
 void InitESPNow() {
@@ -63,6 +111,42 @@ void configDeviceAP() {
   }
 }
 
+// Check if the slave is already paired with the master.
+// If not, pair the slave with master
+void manageSlave() {
+  if (SlaveCnt == 0) {
+    println("No Slave found to process");
+    return;
+  }
+
+  for (int i = 0; i < SlaveCnt; i++) {
+    print("Slave Found, Processing: ");
+
+    for (int ii = 0; ii < 6; ++ii) {
+      print((uint8_t)slaves[i].peer_addr[ii], HEX);
+      if (ii != 5)
+        print(":");
+    }
+
+    print(" Status: ");
+    // check if the peer exists
+    bool exists = esp_now_is_peer_exist(slaves[i].peer_addr);
+    if (!exists && regSlavesCnt < NUMSLAVES) {
+      // Slave not paired, attempt pair
+      esp_err_t addStatus = esp_now_add_peer(&slaves[i]);
+      check_esp_err(addStatus);
+      if (addStatus == ESP_OK) {
+        regSlavesCnt++;
+      }
+      delay(100);
+
+    } else {
+      // Slave already paired.
+      println("Already Paired");
+    }
+  }
+}
+
 // Scan for slaves in AP mode
 void ScanForSlave() {
   int8_t scanResults =
@@ -71,131 +155,65 @@ void ScanForSlave() {
   memset(slaves, 0, sizeof(slaves));
   SlaveCnt = 0;
   println("");
+
   if (scanResults == 0) {
     println("No WiFi devices in AP Mode found");
-  } else {
-    print("Found ");
-    print(scanResults);
-    println(" devices ");
-    for (int i = 0; i < scanResults; ++i) {
-      // Print SSID and RSSI for each device found
-      String SSID = WiFi.SSID(i);
-      int32_t RSSI = WiFi.RSSI(i);
-      String BSSIDstr = WiFi.BSSIDstr(i);
+    return;
+  }
 
-      delay(10);
-      // Check if the current device starts with `Slave`
-      if (SSID.indexOf("Slave") == 0) {
-        // SSID of interest
-        print(i + 1);
-        print(": ");
-        print(SSID);
-        print(" [");
-        print(BSSIDstr);
-        print("]");
-        print(" (");
-        print(RSSI);
-        print(")");
-        println("");
-        // Get BSSID => Mac Address of the Slave
-        int mac[6];
+  print("Found ");
+  print(scanResults);
+  println(" devices ");
 
-        Serial.println(SSID);
+  for (int i = 0; i < scanResults; ++i) {
+    // Print SSID and RSSI for each device found
+    SSID = WiFi.SSID(i);
+    RSSI = WiFi.RSSI(i);
+    BSSIDstr = WiFi.BSSIDstr(i);
 
-        if (6 == sscanf(BSSIDstr.c_str(), "%x:%x:%x:%x:%x:%x", &mac[0], &mac[1],
-                        &mac[2], &mac[3], &mac[4], &mac[5])) {
-          for (uint8_t ii = 0; ii < 6; ++ii) {
-            if (ii == 5) {
-              slaves[SlaveCnt].peer_addr[ii] = (uint8_t)mac[ii] - 1;
-            } else {
-              slaves[SlaveCnt].peer_addr[ii] = (uint8_t)mac[ii];
-            }
-          }
-        }
-        slaves[SlaveCnt].channel = CHANNEL; // pick a channel
-        slaves[SlaveCnt].encrypt = 0;       // no encryption
-        SlaveCnt++;
+    delay(10);
+
+    // Check if the current device starts with `Slave`
+    if (SSID.indexOf("Slave") != 0)
+      continue;
+
+    // SSID of interest
+    print(i + 1);
+    print(": ");
+    print(SSID);
+    print(" [");
+    print(BSSIDstr);
+    print("]");
+    print(" (");
+    print(RSSI);
+    print(")");
+    println("");
+    // Get BSSID => Mac Address of the Slave
+    int mac[6];
+
+    if (6 != sscanf(BSSIDstr.c_str(), "%x:%x:%x:%x:%x:%x", &mac[0], &mac[1],
+                    &mac[2], &mac[3], &mac[4], &mac[5]))
+      continue;
+
+    for (uint8_t ii = 0; ii < 6; ++ii) {
+      if (ii == 5) {
+        slaves[SlaveCnt].peer_addr[ii] = (uint8_t)mac[ii] - 1;
+      } else {
+        slaves[SlaveCnt].peer_addr[ii] = (uint8_t)mac[ii];
       }
     }
-  }
+    pcData.RSSI[i] = RSSI;
+    pcData.battery_level[i] = 0;
+    memcpy(&pcData.buttons_mac[i], slaves[SlaveCnt].peer_addr, 6);
 
-  if (SlaveCnt > 0) {
-    print(SlaveCnt);
-    println(" Slave(s) found, processing..");
-  } else {
-    println("No Slave Found, trying again.");
+    slaves[SlaveCnt].channel = CHANNEL; // pick a channel
+    slaves[SlaveCnt].encrypt = 0;       // no encryption
+    SlaveCnt++;
   }
+  manageSlave();
 
   // clean up ram
   WiFi.scanDelete();
-}
-
-// Check if the slave is already paired with the master.
-// If not, pair the slave with master
-void manageSlave() {
-  if (SlaveCnt > 0) {
-    for (int i = 0; i < SlaveCnt; i++) {
-      print("Processing: ");
-      for (int ii = 0; ii < 6; ++ii) {
-        print((uint8_t)slaves[i].peer_addr[ii], HEX);
-        if (ii != 5)
-          print(":");
-      }
-      print(" Status: ");
-      // check if the peer exists
-      bool exists = esp_now_is_peer_exist(slaves[i].peer_addr);
-      if (exists) {
-        // Slave already paired.
-        println("Already Paired");
-      } else {
-        // Slave not paired, attempt pair
-        esp_err_t addStatus = esp_now_add_peer(&slaves[i]);
-        if (addStatus == ESP_OK) {
-          // Pair success
-          println("Pair success");
-        } else if (addStatus == ESP_ERR_ESPNOW_NOT_INIT) {
-          // How did we get so far!!
-          println("ESPNOW Not Init");
-        } else if (addStatus == ESP_ERR_ESPNOW_ARG) {
-          println("Add Peer - Invalid Argument");
-        } else if (addStatus == ESP_ERR_ESPNOW_FULL) {
-          println("Peer list full");
-        } else if (addStatus == ESP_ERR_ESPNOW_NO_MEM) {
-          println("Out of memory");
-        } else if (addStatus == ESP_ERR_ESPNOW_EXIST) {
-          println("Peer Exists");
-        } else {
-          println("Not sure what happened");
-        }
-        delay(100);
-      }
-    }
-  } else {
-    // No slave found to process
-    println("No Slave found to process");
-  }
-}
-
-void check_esp_send(esp_err_t result) {
-  print("Send Status: ");
-  if (result == ESP_OK) {
-    Serial.println("Success");
-  } else if (result == ESP_ERR_ESPNOW_NOT_INIT) {
-    // How did we get so far!!
-    Serial.println("ESPNOW not Init.");
-  } else if (result == ESP_ERR_ESPNOW_ARG) {
-    Serial.println("Invalid Argument");
-  } else if (result == ESP_ERR_ESPNOW_INTERNAL) {
-    Serial.println("Internal Error");
-  } else if (result == ESP_ERR_ESPNOW_NO_MEM) {
-    Serial.println("ESP_ERR_ESPNOW_NO_MEM");
-  } else if (result == ESP_ERR_ESPNOW_NOT_FOUND) {
-    Serial.println("Peer not found.");
-  } else if (result == ESP_ERR_ESPNOW_IF) {
-    Serial.println("Interface error.");
-  } else {
-    Serial.println("Not sure what happened");
-  }
 }
 
 uint8_t data = 0;
@@ -209,9 +227,20 @@ void sendData() {
       println(data);
     }
     esp_err_t result = esp_now_send(peer_addr, &data, sizeof(data));
-    check_esp_send(result);
+    check_esp_err(result);
     delay(100);
   }
+}
+
+String macToString(const uint8_t *mac) {
+  char macStr[18]; // Buffer to hold the string representation of the MAC
+
+  // Format the MAC address into the buffer
+  snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0],
+           mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+  // Return the formatted MAC address as a String
+  return String(macStr);
 }
 
 // callback when data is sent from Master to Slave
@@ -232,9 +261,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
     return;
   }
 
-  char macStr[18];
-  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0],
-           mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  auto macStr = macToString(mac_addr);
 
   print("Last Packet Recv from: ");
   println(macStr);
@@ -245,12 +272,13 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
 
   controllerData.pressed = true;
   memcpy(controllerData.winner_mac, mac_addr, 6);
+  memcpy(pcData.winner_mac, mac_addr, 6);
 
   Serial.println("Winner Mac:" + String(macStr));
 
   esp_err_t result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
                                   sizeof(controllerData));
-  check_esp_send(result);
+  check_esp_err(result);
 }
 
 void setup() {
@@ -283,39 +311,36 @@ void setup() {
   while (millis() - startTime < duration) {
     // In the loop we scan for slave
     ScanForSlave();
-    // If Slave is found, it would be populate in `slave` variable
-    // We will check if `slave` is defined and then we proceed further
-    if (SlaveCnt > 0) { // check if slave channel is defined
-      // `slave` is defined
-      // Add slave as peer if it has not been added already
-      manageSlave();
-    } else {
-      // No slave found to process
-    }
   }
 
   esp_now_register_recv_cb(OnDataRecv);
 }
 
 void loop() {
-
-  /* Serial.println("slaves[0].peer_addr[0]: " +
-   * String(slaves[0].peer_addr[0])); */
-  /* if (Serial.available() > 0) { */
-  /*   /1* String msg = Serial.readStringUntil('\n'); *1/ */
-  /*   /1* String msg = Serial.readString(); *1/ */
-  /*   char msg = Serial.read(); */
-  /*   Serial.println(msg); */
+  /* for (int i = 0; i < NUMSLAVES; i++) { */
+  /*   Serial.println(pcData.RSSI[i]); */
+  /*   Serial.println(macToString(pcData.buttons_mac[i])); */
+  /*   Serial.println(pcData.battery_level[i]); */
   /* } */
+
   if (Serial.available() > 0) {
     char msg = Serial.read();
     if (msg == 's') {
       ScanForSlave();
+      for (int i = 0; i < regSlavesCnt; i++) {
+        Serial.println("ID;" + String(i) + "|" + "SSID;" +
+                       macToString(pcData.buttons_mac[i]) + "|" + "RSSI;" +
+                       String(pcData.RSSI[i]) +
+                       "|"
+                       "BAT;" +
+                       String(pcData.battery_level[i]));
+      }
+      /* Serial.println("x00"); */
     }
 
-    char mac[18];
-    Serial.readBytes(mac, 18);
-    Serial.println(mac);
+    /* char mac[18]; */
+    /* Serial.readBytes(mac, 18); */
+    /* Serial.println(mac); */
 
     /* if (msg == 'w') { */
     /*   ScanForSlave(); */
@@ -334,7 +359,7 @@ void loop() {
   /*         auto result = esp_now_send(broadcast_mac, (uint8_t
    * *)&controllerData, */
   /*                                    sizeof(controllerData)); */
-  /*         check_esp_send(result); */
+  /*         check_esp_err(result); */
 
   /*         break; */
   /*       } else if (answer == 'n') { */
