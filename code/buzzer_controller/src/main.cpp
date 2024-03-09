@@ -16,11 +16,11 @@ typedef struct struct_message_button {
 
 typedef struct struct_message_controller {
   bool pressed;
+  bool ping;
   uint8_t winner_mac[6];
 } struct_message_controller;
 
 typedef struct struct_message_pc {
-  uint8_t winner_mac[6];
   uint8_t buttons_mac[NUMSLAVES][6];
   uint8_t battery_level[NUMSLAVES];
   int32_t RSSI[NUMSLAVES];
@@ -202,9 +202,9 @@ void ScanForSlave() {
         slaves[SlaveCnt].peer_addr[ii] = (uint8_t)mac[ii];
       }
     }
-    pcData.RSSI[i] = RSSI;
-    pcData.battery_level[i] = 0;
-    memcpy(&pcData.buttons_mac[i], slaves[SlaveCnt].peer_addr, 6);
+    pcData.RSSI[SlaveCnt] = RSSI;
+    pcData.battery_level[SlaveCnt] = 0;
+    memcpy(&pcData.buttons_mac[SlaveCnt], slaves[SlaveCnt].peer_addr, 6);
 
     slaves[SlaveCnt].channel = CHANNEL; // pick a channel
     slaves[SlaveCnt].encrypt = 0;       // no encryption
@@ -271,13 +271,20 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
   someone_has_pressed = true;
 
   controllerData.pressed = true;
+  controllerData.ping = false;
   memcpy(controllerData.winner_mac, mac_addr, 6);
-  memcpy(pcData.winner_mac, mac_addr, 6);
 
-  Serial.println("Winner Mac:" + String(macStr));
+  Serial.println("WSSID;" + String(macStr));
 
   esp_err_t result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
                                   sizeof(controllerData));
+  check_esp_err(result);
+}
+
+void ping_button(const uint8_t *mac_addr) {
+  controllerData.ping = true;
+  auto result = esp_now_send(mac_addr, (uint8_t *)&controllerData,
+                             sizeof(controllerData));
   check_esp_err(result);
 }
 
@@ -304,28 +311,16 @@ void setup() {
     Serial.println("Failed to add peer");
     return;
   }
-
-  auto startTime = millis();
-  auto duration = 10000;
-
-  while (millis() - startTime < duration) {
-    // In the loop we scan for slave
-    ScanForSlave();
-  }
-
   esp_now_register_recv_cb(OnDataRecv);
 }
 
 void loop() {
-  /* for (int i = 0; i < NUMSLAVES; i++) { */
-  /*   Serial.println(pcData.RSSI[i]); */
-  /*   Serial.println(macToString(pcData.buttons_mac[i])); */
-  /*   Serial.println(pcData.battery_level[i]); */
-  /* } */
-
   if (Serial.available() > 0) {
     char msg = Serial.read();
+
+    // Scan for slaves
     if (msg == 's') {
+      memset(&pcData, 0, sizeof(pcData));
       ScanForSlave();
       for (int i = 0; i < regSlavesCnt; i++) {
         Serial.println("ID;" + String(i) + "|" + "SSID;" +
@@ -335,42 +330,46 @@ void loop() {
                        "BAT;" +
                        String(pcData.battery_level[i]));
       }
-      /* Serial.println("x00"); */
     }
 
-    /* char mac[18]; */
-    /* Serial.readBytes(mac, 18); */
-    /* Serial.println(mac); */
+    // Send reset command to all slaves
+    if (msg == 'r') {
+      someone_has_pressed = false;
+      controllerData.pressed = false;
+      controllerData.ping = false;
+      auto result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
+                                 sizeof(controllerData));
+      check_esp_err(result);
+    }
 
-    /* if (msg == 'w') { */
-    /*   ScanForSlave(); */
-    /* } */
+    // Ping the button 1
+    if (msg == '1') {
+      println("Ping button 1");
+      ping_button(pcData.buttons_mac[0]);
+    }
+
+    // Ping the button 2
+    if (msg == '2') {
+      println("Ping button 2");
+      ping_button(pcData.buttons_mac[1]);
+    }
+
+    // Ping the button 3
+    if (msg == '3') {
+      println("Ping button 3");
+      ping_button(pcData.buttons_mac[2]);
+    }
+
+    // Ping the button 4
+    if (msg == '4') {
+      println("Ping button 4");
+      ping_button(pcData.buttons_mac[3]);
+    }
+
+    // Ping the button 5
+    if (msg == '5') {
+      println("Ping button 5");
+      ping_button(pcData.buttons_mac[4]);
+    }
   }
-
-  /* if (someone_has_pressed) { */
-  /*   Serial.println("Do you want to reset the game?"); */
-  /*   while (true) { */
-  /*     if (Serial.available() > 0) { */
-  /*       char answer = Serial.read(); */
-  /*       if (answer == 'y') { */
-  /*         Serial.println("Resetting the game..."); */
-  /*         someone_has_pressed = false; */
-  /*         controllerData.pressed = false; */
-  /*         auto result = esp_now_send(broadcast_mac, (uint8_t
-   * *)&controllerData, */
-  /*                                    sizeof(controllerData)); */
-  /*         check_esp_err(result); */
-
-  /*         break; */
-  /*       } else if (answer == 'n') { */
-  /*         Serial.println("Game will not be reset."); */
-  /*         break; */
-  /*       } else { */
-  /*         Serial.println("Invalid input. Please enter 'y' or 'n'."); */
-  /*       } */
-  /*     } */
-  /*   } */
-  /* } */
-
-  // wait for 3seconds to run the logic again
 }

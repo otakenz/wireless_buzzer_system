@@ -86,7 +86,7 @@ def on_port_select_button_click():
 
     log_info(f"Opening serial connection to port: {selected_port}")
 
-    serial_port = serial.Serial(selected_port, 115200)
+    serial_port = serial.Serial(selected_port, 115200, timeout=1)
 
     if serial_port.is_open:
         log_info(f"Serial port opened: {selected_port}")
@@ -107,110 +107,105 @@ def update_button_status():
     if serial_port.in_waiting == 0:
         return
 
-    esp32_data = serial_port.readline().decode('utf-8').strip("\n")
-    log_debug(f"Data received from ESP32: {esp32_data}")
+    esp32_data = serial_port.readline().decode('utf-8').strip("\n\r")
+    if "WSSID" in esp32_data:
+        winner_ssid = esp32_data.split(";")
+        log_debug(f"Winner SSID: {winner_ssid[1]}")
+        for i in buttons_info:
+            if buttons_info[i]['SSID'] == winner_ssid[1]:
+                log_debug(f"Button {i} is the winner")
+                dpg.configure_item(f'button_shape_{i}', color=winner_bg_color, fill=winner_bg_color)
+                break
+        log_debug(f"Winner SSID: {winner_ssid[1]} not found in the list of buttons")
 
-    # Message format: Slave SSID: 30:AE:A4:1A:2B:3C, length: 30
-    # if "Slave SSID:" in esp32_data[0:13] and len(esp32_data) == 30:
-    #     esp32_data = esp32_data[12:]
-    #     if esp32_data not in buttons_ssid and len(buttons_ssid) < 5:
-    #         log_info(f"Adding button with SSID: {esp32_data}")
-    #         dpg.configure_item(f'button_ssid_{len(buttons_ssid)+1}', text=f"SSID:{esp32_data}")
-    #         dpg.configure_item(f'button_shape_{len(buttons_ssid)+1}', color=online_bg_color, fill=online_bg_color)
-    #         buttons_ssid.append(esp32_data)
+def ping_button_location(button_id):
+    if not (serial_port is not None and serial_port.is_open):
+        return
 
-    # if "Winner Mac:" in esp32_data[0:13] and len(esp32_data) == 30:
-    #     esp32_data = esp32_data[12:]
-    #     if esp32_data in buttons_ssid:
-    #         log_info(f"Winner button with SSID: {esp32_data}")
-    #         dpg.configure_item(f'button_shape_{buttons_ssid.index(esp32_data)+1}', color=winner_bg_color, fill=winner_bg_color)
-
-def get_rssi():
-    if serial_port is not None and serial_port.is_open:
-        serial_port.write(b'w')
-
+    serial_port.write(bytes(f"{str(button_id)}", 'utf-8'))
 
 def on_ping_button_clicked(sender):
     id = int(sender[-1])
 
     if dpg.is_item_hovered(sender):
-        if id > len(buttons_ssid):
+        if id > len(buttons_info):
             log_warning(f"Button {id} does not exist")
             return
         if serial_port is not None and serial_port.is_open:
-            # serial_port.write(f"ping {buttons_ssid[id-1]}\n".encode('utf-8'))
-            # get_ssid()
-            # serial_port.readline().decode('ascii')
+            ping_button_location(id)
             log_info(f"Pinging button {id}")
-            dpg.configure_item(f'button_shape_{id}', color=winner_bg_color, fill=winner_bg_color)
         else:
             log_warning(f"Serial port not open, unable to ping button {id}")
 
 def on_reset_click():
+    if not (serial_port is not None and serial_port.is_open):
+        return
+
+    serial_port.write(b'r')
+
     log_info("Resetting game")
-    for i in range(1, len(buttons_ssid)+1):
+    for i in range(1, len(buttons_info)+1):
+        log_debug(f"Resetting button {i}")
         dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
 
 # def on_scan_click(sender, app_data, user_data):
 def on_scan_click(sender):
-    # state = user_data
-    # state = not state
-    # log_info(f"Scan button state: {state}")
-
-    # dpg.set_item_user_data(sender, state)
-    scanning_buttons()
-
-
-def scanning_buttons():
-    # state = dpg.get_item_user_data("scan_button")
-
     if not (serial_port is not None and serial_port.is_open):
         return
-
-    # if not state:
-    #     return
 
     serial_port.write(b's')
     log_info("Scanning for buttons")
 
+    scanning_buttons()
+
+
+def scanning_buttons():
+    if not (serial_port is not None and serial_port.is_open):
+        return
+
     esp32_data = serial_port.readline().decode('utf-8').strip("\n\r")
 
-    log_debug(f"Data received from ESP32: {esp32_data}")
-    # print(esp32_data)
-    # print(len(esp32_data))
+    if esp32_data == "":
+        log_info("No buttons found")
+        return
+
+    log_debug(f"Button data received from controller: {esp32_data}")
+
     idx = 0
-    if "SSID" in esp32_data:
+    # Check if the data is regarding the button
+    # Data format: ID;1|SSID;30:AE:A4:1A:2B:3C|RSSI;-50|BAT;100
+    if "ID" in esp32_data:
         s = esp32_data.split("|")
         for ele in s:
             key = (ele.split(";"))[0]
             value = (ele.split(";"))[1]
+            # Create a dictionary to store the button information
+            # e.g. {1: {'SSID': '30:AE:A4:1A:2B:3C ', 'RSSI': '-50', 'BAT': '100'}}
+            # TODO: Implement a way to check if data format is strictly adhered (data corruption check)
             if key == "ID":
-                idx = int(value)
+                idx = int(value) + 1
                 buttons_info[idx] = {}
             else:
                 buttons_info[idx][key] = value
 
     for i in buttons_info:
-        dpg.configure_item(f'button_ssid_{i+1}', text=f"SSID:{buttons_info[i]['SSID']}")
-        dpg.configure_item(f'button_shape_{i+1}', color=online_bg_color, fill=online_bg_color)
-        # dpg.configure_item(f'button_status_{i+1}', text=f"Status: {buttons_info[i]['STATUS']}")
-        dpg.configure_item(f'button_rssi_{i+1}', text=f"RSSI: {buttons_info[i]['RSSI']}")
-        dpg.configure_item(f'button_battery_{i+1}', text=f"Battery: {buttons_info[i]['BAT']}")
+        if buttons_info[i]['SSID'] != "00:00:00:00:00:00":
+            log_debug(f"Button {i} SSID: {buttons_info[i]['SSID']}")
+            dpg.configure_item(f'button_ssid_{i}', text=f"SSID:{buttons_info[i]['SSID']}")
+            dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
+            dpg.configure_item(f'button_status_{i}', text=f"Status: Online")
+            dpg.configure_item(f'button_rssi_{i}', text=f"RSSI: {buttons_info[i]['RSSI']}")
+            dpg.configure_item(f'button_battery_{i}', text=f"Battery: {buttons_info[i]['BAT']}")
+        else:
+            log_debug(f"Button {i} is offline")
+            dpg.configure_item(f'button_shape_{i}', color=offline_bg_color, fill=offline_bg_color)
+            dpg.configure_item(f'button_status_{i}', text=f"Status: Offline")
+            dpg.configure_item(f'button_ssid_{i}', text=f"SSID: None")
+            dpg.configure_item(f'button_rssi_{i}', text=f"RSSI: None")
+            dpg.configure_item(f'button_battery_{i}', text=f"Battery: None")
 
-
-
-    # if "SSID:" in esp32_data and len(esp32_data) == 24:
-    #     esp32_data = esp32_data[5:]
-    #     if esp32_data not in buttons_ssid and len(buttons_ssid) < 5:
-    #         log_info(f"Adding button with SSID: {esp32_data}")
-    #         dpg.configure_item(f'button_ssid_{len(buttons_ssid)+1}', text=f"SSID:{esp32_data}")
-    #         dpg.configure_item(f'button_shape_{len(buttons_ssid)+1}', color=online_bg_color, fill=online_bg_color)
-    #         buttons_ssid.append(esp32_data)
-    # if "BAT:" in esp32_data and len(esp32_data) == 6:
-    #     esp32_data = esp32_data[3:]
-    #     log_info(f"Battery level: {esp32_data}")
-
-
+    if serial_port.in_waiting > 0:
+        scanning_buttons()
 
 def on_close_click():
     global serial_port
@@ -244,7 +239,6 @@ def main(log_level):
 
         with dpg.group(horizontal=True):
             dpg.add_button(label="RESET", tag='reset_button', callback=on_reset_click, enabled=False, width=100, height=50)
-            # dpg.add_button(label="SCAN", tag='scan_button', callback=on_scan_click, enabled=False, width=100, height=50, user_data=False)
             dpg.add_button(label="SCAN", tag='scan_button', callback=on_scan_click, enabled=False, width=100, height=50)
 
 
@@ -255,10 +249,10 @@ def main(log_level):
                     x, y = 10, 20
                     dpg.draw_rectangle((0, 0), (240, 200), tag=f'button_shape_{i}', color=offline_bg_color, fill=offline_bg_color)
                     dpg.draw_text((50, y), f"Button {i}", color=text_color, size=text_size, tag=f'button_text_{i}')
-                    dpg.draw_text((x, y+30), "Status:", color=text_color, size=text_size, tag=f'button_status_{i}')
-                    dpg.draw_text((x, y+60), "SSID:", color=text_color, size=text_size, tag=f'button_ssid_{i}')
-                    dpg.draw_text((x, y+90), "RSSI:", color=text_color, size=text_size, tag=f'button_rssi_{i}')
-                    dpg.draw_text((x, y+120), "Battery:", color=text_color, size=text_size, tag=f'button_battery_{i}')
+                    dpg.draw_text((x, y+30), "Status: Offline", color=text_color, size=text_size, tag=f'button_status_{i}')
+                    dpg.draw_text((x, y+60), "SSID: None", color=text_color, size=text_size, tag=f'button_ssid_{i}')
+                    dpg.draw_text((x, y+90), "RSSI: None", color=text_color, size=text_size, tag=f'button_rssi_{i}')
+                    dpg.draw_text((x, y+120), "Battery: None", color=text_color, size=text_size, tag=f'button_battery_{i}')
 
 
     with dpg.window(label="Logging", tag="log", pos=(0, 470), width=1280, height=300, no_close=True):

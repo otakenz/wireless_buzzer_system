@@ -26,6 +26,7 @@ typedef struct struct_message_button {
 
 typedef struct struct_message_controller {
   bool pressed;
+  bool ping;
   uint8_t winner_mac[6];
 } struct_message_controller;
 
@@ -167,6 +168,18 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
     digitalWrite(LED_PIN, LOW);
   }
 
+  if (controllerData.ping) {
+    println("Ping from controller received!");
+    controllerData.ping = false;
+    for (uint8_t i = 0; i < 5; i++) {
+      digitalWrite(LED_PIN, HIGH);
+      delay(500);
+      digitalWrite(LED_PIN, LOW);
+      delay(500);
+    }
+    // TODO: flicker LED in blue for a short time
+  }
+
   print("Bytes received: ");
   println(data_len);
 }
@@ -180,7 +193,7 @@ void IRAM_ATTR onButtonTimer() {
 hw_timer_t *read_button_timer = NULL;
 
 void setup() {
-  begin(115200);
+  Serial.begin(115200);
 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(ADC_PIN, INPUT);
