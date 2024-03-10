@@ -227,7 +227,7 @@ def main(log_level):
     text_size = 15
 
     dpg.create_context()
-    dpg.create_viewport(title='MT24 Buzzer', width=1280, height=1080, x_pos=2000, y_pos=100)
+    dpg.create_viewport(title='MT24 Buzzer', width=1280, height=1080, x_pos=0, y_pos=0)
     dpg.setup_dearpygui()
 
     # with dpg.window(label="MT24 Buzzer", width=1250, height=750):
