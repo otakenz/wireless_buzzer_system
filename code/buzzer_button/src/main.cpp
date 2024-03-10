@@ -10,11 +10,18 @@
 
 #define CHANNEL 11
 
-/* #define LED_PIN 0 */
-#define LED_PIN 10
-#define ADC_PIN 4
+// onboard led
+/* #define LED_PIN 10 */
 #define ADC_ENABLE_PIN 6
-#define BUTTON_PIN 7
+
+// beetle setting
+#define LED_PIN 6
+#define BUTTON_PIN 1
+#define LED_COUNT 1
+#define ADC_PIN 0
+
+Adafruit_NeoPixel RGB_LED =
+    Adafruit_NeoPixel(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 constexpr uint8_t controller[] = {0xDC, 0x54, 0x75, 0x62, 0x50, 0xFC};
 constexpr uint8_t broadcast_mac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -85,12 +92,13 @@ void InitESPNow() {
   }
 }
 
-/* void colorWipe(uint32_t c) { */
-/*   for (uint8_t i = 0; i < LED.numPixels(); i++) { */
-/*     LED.setPixelColor(i, c); */
-/*     LED.show(); */
-/*   } */
-/* } */
+// Fill the dots with one color
+void colorWipe(uint32_t c) {
+  for (uint16_t i = 0; i < RGB_LED.numPixels(); i++) {
+    RGB_LED.setPixelColor(i, c);
+    RGB_LED.show();
+  }
+}
 
 uint8_t get_battery_voltage() {
   digitalWrite(ADC_ENABLE_PIN, LOW);
@@ -108,7 +116,6 @@ void sendButtonData() {
   if (controllerData.pressed) {
     return;
   }
-  /* colorWipe(LED.Color(0, 255, 0)); */
   esp_read_mac(buttonData.local_mac, ESP_MAC_WIFI_STA);
   /* buttonData.battery_level = get_battery_voltage(); */
   buttonData.battery_level = random(0, 100);
@@ -145,7 +152,6 @@ bool compareMacAddress(const uint8_t *mac1, const uint8_t *mac2) {
 
 // Callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  /* colorWipe(LED.Color(0, 0, 0)); */
   print("\r\nLast Packet Send Status:\t");
   println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success"
                                          : "Delivery Fail");
@@ -159,24 +165,25 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
   if (controllerData.pressed) {
     if (compareMacAddress(controllerData.winner_mac, buttonData.local_mac)) {
       println("Controller: You won!");
-      digitalWrite(LED_PIN, HIGH);
+      colorWipe(RGB_LED.Color(255, 0, 0));
     } else {
       println("Controller: Someone pressed the button first!");
     }
   } else {
     println("Controller: reset LED!");
-    digitalWrite(LED_PIN, LOW);
+    colorWipe(RGB_LED.Color(0, 0, 0));
   }
 
   if (controllerData.ping) {
     println("Ping from controller received!");
     controllerData.ping = false;
     for (uint8_t i = 0; i < 5; i++) {
-      digitalWrite(LED_PIN, HIGH);
+      colorWipe(RGB_LED.Color(0, 255, 0));
       delay(500);
-      digitalWrite(LED_PIN, LOW);
+      colorWipe(RGB_LED.Color(0, 0, 255));
       delay(500);
     }
+    colorWipe(RGB_LED.Color(0, 0, 0));
     // TODO: flicker LED in blue for a short time
   }
 
@@ -217,10 +224,9 @@ void setup() {
   // Init ESP-NOW
   InitESPNow();
 
-  /* LED.begin(); */
-  /* LED.show();             // Disable all the pixel by default when
-   * initialized */
-  /* LED.setBrightness(255); // Set brightness */
+  RGB_LED.begin();
+  RGB_LED.show(); // Disable all the pixel by default when initialized
+  RGB_LED.setBrightness(255); // Set brightness
 
   // Once ESPNow is successfully Init, we will register for Send CB to
   // get the status of Trasnmitted packet
