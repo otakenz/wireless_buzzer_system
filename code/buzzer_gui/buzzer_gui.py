@@ -5,12 +5,9 @@ import subprocess
 import ast
 from logger import mvLogger
 import argparse
-import time
 import json
-import cv2
 import os
-import subprocess
-import sys
+import vlc
 
 serial_port = None  # Store the serial port object
 
@@ -22,92 +19,28 @@ winner_bg_color = (0, 255, 0)
 buttons_ssid = []
 buttons_info = {}
 
-# Load the JSON file containing the MP4 paths
+# Load the JSON file containing video paths for different conditions
 with open('mp4_path.json', 'r') as f:
     mp4_paths = json.load(f)
 
-# Initialize the video capture object
-cap = None
-
-def open_video(condition):
-    global cap
-    # Close the current video if one is opened
-    if cap is not None:
-        cap.release()
-    # Open the video file associated with the condition
+def play_video(condition):
     if condition in mp4_paths:
-        video_name = mp4_paths[condition]
-        cap = cv2.VideoCapture(video_name)
-        if not cap.isOpened():
-            print(f"Error opening video file {mp4_paths [condition]}")
-        else:
-            cv2.namedWindow('Video', cv2.WINDOW_NORMAL)
-            cv2.setWindowProperty('Video', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-            cv2.resizeWindow('Video', 1920, 1080)
-            play_video()
-    else:
-        print (f"No video file associated with condition {condition}")
-    return video_name
+        video_path = mp4_paths[condition]
+        
+        instance = vlc.Instance('--fullscreen')
+        player = instance.media_player_new()
+        media = instance.media_new(video_path)
+        player.set_media(media)
+        player.set_fullscreen(True)
+        player.play()
 
-#def open_video(condition):
-#    with open('mp4_path.json', 'r') as f:
-#        mp4_paths = json.load(f)
-#
-#    if condition in mp4_paths:
-#        video_name = mp4_paths[condition]
-#        try:
-#            if sys.platform == 'darwin':  # macOS
-#                # Open the video file in macOS with the default media player
-#                subprocess.Popen(['open', '-a', 'QuickTime Player', video_name])
-#                #time.sleep(1)  # Allow some time for the player to open
-#                # Put it in full screen Cmd + F
-#                subprocess.call(['osascript', '-e', 'tell application "System Events" to keystroke "f" using {command down}'])
-#                time.sleep(0.5)
-#                # Enter spacebar to play the video
-#                subprocess.call(['osascript', '-e', 'tell application "System Events" to key code 49'])
-#                #time.sleep(10)  # Allow some time for full screen mode
-#                #subprocess.call(['osascript', '-e', 'tell application "System Events" to keystroke "w" using {command down}'])
-#                #subprocess.call(['osascript', '-e', 'tell application "QuickTime Player" to quit'])
-#            elif sys.platform == 'win32':  # Windows
-#                # Open the video file in Windows with the default media player
-#                subprocess.Popen(['start', '', video_name], shell=True)
-#                time.sleep(1)  # Allow some time for the player to open
-#                # Simulate keypress events to enter full screen mode and close the player after playback
-#                subprocess.call(['Alt+F4'], shell=True)
-#            else:
-#                print("Unsupported platform")
-#                return None
-#        except Exception as e:
-#            print(f"Error opening video file: {e}")
-#            return None
-#        return video_name
-#    else:
-#        print(f"No video file associated with condition {condition}")
-#        return None
-
-def play_video():
-    global cap
-    if cap is not None:
-        while(cap.isOpened()):
-            ret, frame = cap.read()
-            if ret == True:
-                cv2.imshow('Video', frame)
-                if cv2.waitKey(25) & 0xFF == ord('q'):
-                    break
-            else:
+        # Wait for the video to finish playing
+        while True:
+            state = player.get_state()
+            if state == vlc.State.Ended:
                 break
-        cap.release()
-        cv2.destroyAllWindows()
-                
-def reset():
-    global cap
-    # Close the current video if one is open
-    if cap is not None:
-        cap.release()
-        cap = None
-        cv2.destroyAllWindows()
 
-video_name = open_video(f"winner1")
+#play_video("winner1")
 
 def log_info(message):
     global logx
@@ -189,9 +122,8 @@ def update_button_status():
         log_debug(f"Winner SSID: {winner_ssid[1]}")
         for i in buttons_info:
             if buttons_info[i]['SSID'] == winner_ssid[1]:
+                play_video(f"winner{i}")
                 log_debug(f"Button {i} is the winner")
-                video_name = open_video(f"winner{i}")
-                log_debug(f"Winner's video name: {video_name}")
                 dpg.configure_item(f'button_shape_{i}', color=winner_bg_color, fill=winner_bg_color)
                 break
         log_debug(f"Winner SSID: {winner_ssid[1]} not found in the list of buttons")
@@ -209,13 +141,6 @@ def on_ping_button_clicked(sender):
     if dpg.is_item_hovered(sender):
         if id > len(buttons_info):
             log_warning(f"Button {id} does not exist")
-            if id == 1:
-                video_name = open_video("winner1")
-            elif id == 2:
-                video_name = open_video("winner2")
-            elif id == 3:
-                video_name = open_video("winner3")
-            log_debug(f"Winner's video name: {video_name}")
             return
         if serial_port is not None and serial_port.is_open:
             ping_button_location(id)
@@ -233,7 +158,6 @@ def on_reset_click():
     for i in range(1, len(buttons_info)+1):
         log_debug(f"Resetting button {i}")
         dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
-        subprocess.call(['osascript', '-e', 'tell application "QuickTime Player" to quit'])
 
 # def on_scan_click(sender, app_data, user_data):
 def on_scan_click(sender):
@@ -361,6 +285,7 @@ def main(log_level):
     # dpg.start_dearpygui()
 
 if __name__ == "__main__":
+    #play_video("winner1")
     args = argparse.ArgumentParser(description="MT24 Buzzer GUI")
     args.add_argument("--log_level", type=int, default=2, help="Log level")
     args = args.parse_args()
