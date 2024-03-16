@@ -1,14 +1,15 @@
 import serial
 import serial.tools.list_ports
 import dearpygui.dearpygui as dpg
-import subprocess
 import ast
 from logger import mvLogger
 import argparse
 import json
 import os
-import vlc
 import time
+import cv2
+import threading
+import zmq
 
 serial_port = None  # Store the serial port object
 
@@ -26,39 +27,61 @@ def load_json_file(file_path):
     with open(file_path, 'r') as f:
         return json.load(f)
 
+
 def play_video(condition):
+    # context = zmq.Context()
+    # socket = context.socket(zmq.PUSH)
+    # socket.bind("tcp://127.0.0.1:5555")
+
+    # socket.send_string(condition)
+
 
     # Check if mp4 json is correctly loaded
-    if condition in mp4_paths:
-        video_path = os.path.expanduser(mp4_paths[condition])
+    if condition not in mp4_config["mp4_paths"]:
+        log_error(f"Video path for condition {condition} not found")
+        return
 
-        instance = vlc.Instance()
-        player = instance.media_player_new()
-        media = instance.media_new(video_path)
-        player.set_media(media)
-        # player.set_fullscreen(True)
-        # Get the screen's geometry (resolution)
-        # Replace screen_number with the desired screen number (usually starts from 0)
-        screen_number = 2  # Adjust this according to your setup
+    video_path = os.path.expanduser(mp4_config["mp4_paths"][condition])
 
-        # Set fullscreen mode and geometry
-        # player.set_fullscreen(True, screen_number)
-        player.set_xwindow(screen_number)
-        player.play()
-        time.sleep(0.5)
-        duration = (player.get_length() or 0.5) - 0.5
-        print(f"Video duration: {duration}")
-        time.sleep(duration/1000)
-        player.stop()
-        instance.release()
+    if not os.path.exists(video_path):
+        log_error(f"Video path for condition {condition} does not exist")
+        return
 
-        # Wait for the video to finish playing
-        # while True:
-        #     state = player.get_state()
-        #     if state == vlc.State.Ended:
-        #         break
+    from ffpyplayer.player import MediaPlayer
 
-#play_video("winner1")
+    video = cv2.VideoCapture(video_path)
+    player = MediaPlayer(video_path)
+
+    fps = mp4_config["fps"]
+    width = mp4_config["width"]
+    height = mp4_config["height"]
+    x_pos = mp4_config["x_pos"]
+    y_pos = mp4_config["y_pos"]
+
+    cv2.namedWindow("Winner", cv2.WINDOW_GUI_NORMAL)
+    cv2.resizeWindow("Winner", width, height)
+    cv2.moveWindow("Winner", x_pos, y_pos)
+
+    while True:
+        ret, frame = video.read()
+        audio_frame, val = player.get_frame()
+        if not ret:
+            log_debug("Reached end of video")
+            break
+        if cv2.waitKey(int(1000/fps)) == ord("q"):
+            break
+        cv2.imshow("Winner", frame)
+        #if val != 'eof' and audio_frame is not None:
+        #    #audio
+        #    img, t = audio_frame
+
+        # run at fps
+        time.sleep(1/fps)
+
+    video.release()
+    cv2.destroyAllWindows()
+    return
+
 
 def log_info(message):
     global logx
@@ -142,8 +165,11 @@ def update_button_status():
         log_debug(f"Winner SSID: {winner_ssid[1]}")
         for i in buttons_info:
             if buttons_info[i]['SSID'] == winner_ssid[1]:
-                play_video(f"winner{i}")
                 log_debug(f"Button {i} is the winner")
+                # Start video playback in a separate thread
+                video_thread = threading.Thread(target=play_video, args=(f"winner{i}",))
+                video_thread.start()
+                # play_video(f"winner{i}")
                 dpg.configure_item(f'button_shape_{i}', color=winner_bg_color, fill=winner_bg_color)
                 break
         log_debug(f"Winner SSID: {winner_ssid[1]} not found in the list of buttons")
@@ -157,7 +183,9 @@ def ping_button_location(button_id):
 
 def on_ping_button_clicked(sender):
     id = int(sender[-1])
-    play_video(f"winner{id}")
+    video_thread = threading.Thread(target=play_video, args=(f"winner{id}",))
+    video_thread.start()
+    # play_video(f"winner{id}")
 
     if dpg.is_item_hovered(sender):
         if id > len(buttons_info):
@@ -252,12 +280,11 @@ def on_close_click():
     log_info("Port close button disabled")
 
 def main(args):
-    global logx, serial_port, mp4_paths
+    global logx, serial_port, mp4_config
 
     log_level = args.log_level
-    mp4_path = args.mp4_path
 
-    mp4_paths = load_json_file(mp4_path)
+    mp4_config = load_json_file(args.mp4_config)
 
     text_color = (255, 255, 255)
     text_size = 15
@@ -311,9 +338,8 @@ def main(args):
 
 
 if __name__ == "__main__":
-    #play_video("winner1")
     args = argparse.ArgumentParser(description="MT24 Buzzer GUI")
     args.add_argument("--log_level", type=int, default=2, help="Log level")
-    args.add_argument("--mp4_path", type=str, default="mp4_path.json", help="Path to the JSON file containing video paths")
+    args.add_argument("--mp4_config", type=str, default="buzzer_mp4_config.json", help="Path to the JSON file containing the mp4 paths for different conditions")
     args = args.parse_args()
     main(args)
