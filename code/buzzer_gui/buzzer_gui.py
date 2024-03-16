@@ -178,11 +178,13 @@ def scanning_buttons():
     if "ID" in esp32_data:
         s = esp32_data.split("|")
         for ele in s:
-            key = (ele.split(";"))[0]
-            value = (ele.split(";"))[1]
+            key = (ele.split(";"))[0] or ""
+            value = (ele.split(";"))[1] or ""
             # Create a dictionary to store the button information
             # e.g. {1: {'SSID': '30:AE:A4:1A:2B:3C ', 'RSSI': '-50', 'BAT': '100'}}
             # TODO: Implement a way to check if data format is strictly adhered (data corruption check)
+            if key == "" or value == "":
+                continue
             if key == "ID":
                 idx = int(value) + 1
                 buttons_info[idx] = {}
