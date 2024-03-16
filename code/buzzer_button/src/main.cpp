@@ -8,22 +8,28 @@
 #include <esp_now.h>
 #include <esp_wifi.h> // only for esp_wifi_set_channel()
 
-#define CHANNEL 11
+#define CHANNEL 1
 
 // onboard led
 /* #define LED_PIN 10 */
 #define ADC_ENABLE_PIN 6
 
 // beetle setting
-#define LED_PIN 6
-#define BUTTON_PIN 1
+/* #define LED_PIN 6 */
+/* #define BUTTON_PIN 1 */
+/* #define LED_COUNT 1 */
+/* #define ADC_PIN 0 */
+
+// xiao setting
+#define LED_PIN 7
+#define BUTTON_PIN 5
 #define LED_COUNT 1
-#define ADC_PIN 0
+#define ADC_PIN 4
 
 Adafruit_NeoPixel RGB_LED =
     Adafruit_NeoPixel(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-constexpr uint8_t controller[] = {0xDC, 0x54, 0x75, 0x62, 0x50, 0xFC};
+constexpr uint8_t controller[] = {0x54, 0x32, 0x04, 0x89, 0x15, 0x50};
 constexpr uint8_t broadcast_mac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 typedef struct struct_message_button {

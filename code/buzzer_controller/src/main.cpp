@@ -6,7 +6,7 @@
 
 // Global copy of slave
 #define NUMSLAVES 5
-#define CHANNEL 11
+#define CHANNEL 1
 
 bool someone_has_pressed = false;
 
@@ -42,9 +42,14 @@ String BSSIDstr = "";
 constexpr char buttons_ssid[] = {"Slave:DC:54:75:5D:AE:C8"
                                  "Slave:DC:54:75:62:06:18"
                                  "Slave:DC:54:75:93:35:3C"
-                                 /* "Slave:DC:54:75:62:50:FC" */
+                                 "Slave:DC:54:75:62:50:FC"
                                  "Slave:EC:DA:3B:BE:8C:88"
-                                 "Slave:64:E8:33:80:BE:FC"};
+                                 "Slave:64:E8:33:80:BE:FC"
+                                 "Slave:54:32:04:89:27:E4"
+                                 "Slave:54:32:04:89:15:50"
+                                 "Slave:54:32:04:88:E9:24"
+                                 "Slave:54:32:04:87:58:94"
+                                 "Slave:54:32:04:87:27:C4"};
 
 constexpr uint8_t broadcast_mac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -151,7 +156,7 @@ void manageSlave() {
 // Scan for slaves in AP mode
 void ScanForSlave() {
   int8_t scanResults =
-      WiFi.scanNetworks(false, false, false, 200, CHANNEL, buttons_ssid);
+      WiFi.scanNetworks(false, false, false, 300, CHANNEL, buttons_ssid);
   // reset slaves
   memset(slaves, 0, sizeof(slaves));
   SlaveCnt = 0;

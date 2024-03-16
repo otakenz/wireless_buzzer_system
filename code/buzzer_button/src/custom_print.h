@@ -1,6 +1,6 @@
 #include "HWCDC.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 inline void print(const char *msg) {
   if (DEBUG) {

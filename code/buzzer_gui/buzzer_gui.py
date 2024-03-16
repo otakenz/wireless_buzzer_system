@@ -150,7 +150,7 @@ def on_reset_click():
         dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
 
 # def on_scan_click(sender, app_data, user_data):
-def on_scan_click(sender):
+def on_scan_click():
     if not (serial_port is not None and serial_port.is_open):
         return
 
