@@ -167,11 +167,11 @@ def update_button_status():
             if buttons_info[i]['SSID'] == winner_ssid[1]:
                 log_debug(f"Button {i} is the winner")
                 # Start video playback in a separate thread
-                video_thread = threading.Thread(target=play_video, args=(f"winner{i}",))
-                video_thread.start()
-                # play_video(f"winner{i}")
+                # video_thread = threading.Thread(target=play_video, args=(f"winner{i}",))
+                # video_thread.start()
+                play_video(f"winner{i}")
                 dpg.configure_item(f'button_shape_{i}', color=winner_bg_color, fill=winner_bg_color)
-                break
+                return
         log_debug(f"Winner SSID: {winner_ssid[1]} not found in the list of buttons")
 
 
@@ -183,8 +183,8 @@ def ping_button_location(button_id):
 
 def on_ping_button_clicked(sender):
     id = int(sender[-1])
-    video_thread = threading.Thread(target=play_video, args=(f"winner{id}",))
-    video_thread.start()
+    # video_thread = threading.Thread(target=play_video, args=(f"winner{id}",))
+    # video_thread.start()
     # play_video(f"winner{id}")
 
     if dpg.is_item_hovered(sender):
