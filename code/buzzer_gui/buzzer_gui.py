@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import vlc
+import time
 
 serial_port = None  # Store the serial port object
 
@@ -16,29 +17,46 @@ offline_bg_color = (50, 50, 50)
 online_bg_color = (128, 128, 128)
 winner_bg_color = (0, 255, 0)
 
-buttons_ssid = []
 buttons_info = {}
 
 # Load the JSON file containing video paths for different conditions
-with open('mp4_path.json', 'r') as f:
-    mp4_paths = json.load(f)
+def load_json_file(file_path):
+    if not os.path.exists(file_path):
+        return {}
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
 def play_video(condition):
+
+    # Check if mp4 json is correctly loaded
     if condition in mp4_paths:
-        video_path = mp4_paths[condition]
-        
-        instance = vlc.Instance('--fullscreen')
+        video_path = os.path.expanduser(mp4_paths[condition])
+
+        instance = vlc.Instance()
         player = instance.media_player_new()
         media = instance.media_new(video_path)
         player.set_media(media)
-        player.set_fullscreen(True)
+        # player.set_fullscreen(True)
+        # Get the screen's geometry (resolution)
+        # Replace screen_number with the desired screen number (usually starts from 0)
+        screen_number = 2  # Adjust this according to your setup
+
+        # Set fullscreen mode and geometry
+        # player.set_fullscreen(True, screen_number)
+        player.set_xwindow(screen_number)
         player.play()
+        time.sleep(0.5)
+        duration = (player.get_length() or 0.5) - 0.5
+        print(f"Video duration: {duration}")
+        time.sleep(duration/1000)
+        player.stop()
+        instance.release()
 
         # Wait for the video to finish playing
-        while True:
-            state = player.get_state()
-            if state == vlc.State.Ended:
-                break
+        # while True:
+        #     state = player.get_state()
+        #     if state == vlc.State.Ended:
+        #         break
 
 #play_video("winner1")
 
@@ -117,6 +135,8 @@ def update_button_status():
         return
 
     esp32_data = serial_port.readline().decode('utf-8').strip("\n\r")
+
+    # Check if the data is regarding the winner
     if "WSSID" in esp32_data:
         winner_ssid = esp32_data.split(";")
         log_debug(f"Winner SSID: {winner_ssid[1]}")
@@ -137,6 +157,7 @@ def ping_button_location(button_id):
 
 def on_ping_button_clicked(sender):
     id = int(sender[-1])
+    play_video(f"winner{id}")
 
     if dpg.is_item_hovered(sender):
         if id > len(buttons_info):
@@ -160,7 +181,7 @@ def on_reset_click():
         dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
 
 # def on_scan_click(sender, app_data, user_data):
-def on_scan_click(sender):
+def on_scan_click():
     if not (serial_port is not None and serial_port.is_open):
         return
 
@@ -230,8 +251,13 @@ def on_close_click():
     log_info("Scan button disabled")
     log_info("Port close button disabled")
 
-def main(log_level):
-    global logx, serial_port
+def main(args):
+    global logx, serial_port, mp4_paths
+
+    log_level = args.log_level
+    mp4_path = args.mp4_path
+
+    mp4_paths = load_json_file(mp4_path)
 
     text_color = (255, 255, 255)
     text_size = 15
@@ -272,6 +298,7 @@ def main(log_level):
 
     dpg.show_viewport()
 
+
     # below replaces, start_dearpygui()
     while dpg.is_dearpygui_running():
         # insert here any code you would like to run in the render loop
@@ -282,11 +309,11 @@ def main(log_level):
 
     dpg.destroy_context()
 
-    # dpg.start_dearpygui()
 
 if __name__ == "__main__":
     #play_video("winner1")
     args = argparse.ArgumentParser(description="MT24 Buzzer GUI")
     args.add_argument("--log_level", type=int, default=2, help="Log level")
+    args.add_argument("--mp4_path", type=str, default="mp4_path.json", help="Path to the JSON file containing video paths")
     args = args.parse_args()
-    main(args.log_level)
+    main(args)
