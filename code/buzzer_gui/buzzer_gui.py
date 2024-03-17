@@ -28,7 +28,9 @@ def load_json_file(file_path):
         return json.load(f)
 
 
+lock = threading.Lock()
 def play_video(condition):
+    global lock
     # context = zmq.Context()
     # socket = context.socket(zmq.PUSH)
     # socket.bind("tcp://127.0.0.1:5555")
@@ -50,7 +52,7 @@ def play_video(condition):
     from ffpyplayer.player import MediaPlayer
 
     video = cv2.VideoCapture(video_path)
-    player = MediaPlayer(video_path)
+    player = MediaPlayer(video_path, autoexit=True)
 
     fps = mp4_config["fps"]
     width = mp4_config["width"]
@@ -64,7 +66,7 @@ def play_video(condition):
 
     while True:
         ret, frame = video.read()
-        audio_frame, val = player.get_frame()
+        # audio_frame, val = player.get_frame()
         if not ret:
             log_debug("Reached end of video")
             break
@@ -80,7 +82,6 @@ def play_video(condition):
 
     video.release()
     cv2.destroyAllWindows()
-    return
 
 
 def log_info(message):
@@ -205,8 +206,9 @@ def on_reset_click():
 
     log_info("Resetting game")
     for i in range(1, len(buttons_info)+1):
-        log_debug(f"Resetting button {i}")
-        dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
+        if buttons_info[i]['SSID'] != "00:00:00:00:00:00":
+            log_debug(f"Resetting button {i}")
+            dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
 
 # def on_scan_click(sender, app_data, user_data):
 def on_scan_click():

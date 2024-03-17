@@ -35,17 +35,16 @@ def play_video(condition):
     y_pos = mp4_config["y_pos"]
 
     # cv2.namedWindow("Winner", cv2.WINDOW_GUI_NORMAL)
-    # cv2.namedWindow("Winner" )
-    # print("hi")
-    # cv2.resizeWindow("Winner", width, height)
-    # cv2.moveWindow("Winner", x_pos, y_pos)
+    cv2.namedWindow("Winner")
+    print("hi")
+    cv2.resizeWindow("Winner", width, height)
+    cv2.moveWindow("Winner", x_pos, y_pos)
     player = MediaPlayer(video_path)
     val = ''
 
-    while val != 'eof':
+    while True:
         ret, frame = video.read()
         audio_frame, val = player.get_frame()
-        print(val)
         if not ret:
             print("Reached end of video")
             break
