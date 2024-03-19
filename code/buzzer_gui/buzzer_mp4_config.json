@@ -1,8 +1,8 @@
 {
   "fps": 60,
-  "width": 800,
-  "height": 600,
-  "x_pos": 2580,
+  "width": 1920,
+  "height": 700,
+  "x_pos": 1921,
   "y_pos": 0,
   "mp4_paths": {
     "winner1": "./assets/Buzzer_1.mp4",
