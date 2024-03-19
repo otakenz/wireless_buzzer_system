@@ -12,7 +12,6 @@ def load_json_file(file_path):
         return json.load(f)
 
 def play_video(condition):
-
     # Check if mp4 json is correctly loaded
     if condition not in mp4_config["mp4_paths"]:
         print(f"Video path for condition {condition} not found")
@@ -24,40 +23,40 @@ def play_video(condition):
         print(f"Video path for condition {condition} does not exist")
         return
 
-
     from ffpyplayer.player import MediaPlayer
-    video = cv2.VideoCapture(video_path)
 
-    fps = mp4_config["fps"]
+    video = cv2.VideoCapture(video_path)
+    player = MediaPlayer(video_path)
+
     width = mp4_config["width"]
     height = mp4_config["height"]
     x_pos = mp4_config["x_pos"]
     y_pos = mp4_config["y_pos"]
 
-    # cv2.namedWindow("Winner", cv2.WINDOW_GUI_NORMAL)
-    cv2.namedWindow("Winner")
-    print("hi")
+    cv2.namedWindow("Winner", cv2.WINDOW_GUI_NORMAL)
     cv2.resizeWindow("Winner", width, height)
     cv2.moveWindow("Winner", x_pos, y_pos)
-    player = MediaPlayer(video_path)
-    val = ''
+
+    start_time = time.time()
 
     while True:
         ret, frame = video.read()
-        audio_frame, val = player.get_frame()
         if not ret:
-            print("Reached end of video")
             break
-        if cv2.waitKey(int(1000/fps)) == ord("q"):
+        if not player.get_frame():
             break
+
         cv2.imshow("Winner", frame)
-        if val != 'eof' and audio_frame is not None:
-            #audio
-            img, t = audio_frame
 
-        # run at fps
-        time.sleep(1/fps)
+        # Sync video with audio
+        elapsed_time = (time.time() - start_time) * 1000 # in ms
+        play_time = video.get(cv2.CAP_PROP_POS_MSEC)
+        sleep = max(1, int(play_time - elapsed_time))
 
+        if cv2.waitKey(sleep) & 0xFF == ord('q'):
+            break
+
+    player.close_player()
     video.release()
     cv2.destroyAllWindows()
 
@@ -69,6 +68,11 @@ def main(args):
     socket.connect("tcp://127.0.0.1:5555")
 
     mp4_config = load_json_file(args.mp4_config)
+
+    # magic, do not touch
+    cv2.namedWindow("Winner", cv2.WINDOW_GUI_NORMAL)
+    cv2.destroyAllWindows()
+    # end of magic
 
     while True:
         message = socket.recv_string()

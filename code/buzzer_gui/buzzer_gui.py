@@ -4,11 +4,6 @@ import dearpygui.dearpygui as dpg
 import ast
 from logger import mvLogger
 import argparse
-import json
-import os
-import time
-import cv2
-import threading
 import zmq
 
 serial_port = None  # Store the serial port object
@@ -20,68 +15,13 @@ winner_bg_color = (0, 255, 0)
 
 buttons_info = {}
 
-# Load the JSON file containing video paths for different conditions
-def load_json_file(file_path):
-    if not os.path.exists(file_path):
-        return {}
-    with open(file_path, 'r') as f:
-        return json.load(f)
+context = zmq.Context()
+socket = context.socket(zmq.PUSH)
+socket.bind("tcp://127.0.0.1:5555")
 
 
-lock = threading.Lock()
 def play_video(condition):
-    global lock
-    # context = zmq.Context()
-    # socket = context.socket(zmq.PUSH)
-    # socket.bind("tcp://127.0.0.1:5555")
-
-    # socket.send_string(condition)
-
-
-    # Check if mp4 json is correctly loaded
-    if condition not in mp4_config["mp4_paths"]:
-        log_error(f"Video path for condition {condition} not found")
-        return
-
-    video_path = os.path.expanduser(mp4_config["mp4_paths"][condition])
-
-    if not os.path.exists(video_path):
-        log_error(f"Video path for condition {condition} does not exist")
-        return
-
-    from ffpyplayer.player import MediaPlayer
-
-    video = cv2.VideoCapture(video_path)
-    player = MediaPlayer(video_path, autoexit=True)
-
-    fps = mp4_config["fps"]
-    width = mp4_config["width"]
-    height = mp4_config["height"]
-    x_pos = mp4_config["x_pos"]
-    y_pos = mp4_config["y_pos"]
-
-    cv2.namedWindow("Winner", cv2.WINDOW_GUI_NORMAL)
-    cv2.resizeWindow("Winner", width, height)
-    cv2.moveWindow("Winner", x_pos, y_pos)
-
-    while True:
-        ret, frame = video.read()
-        # audio_frame, val = player.get_frame()
-        if not ret:
-            log_debug("Reached end of video")
-            break
-        if cv2.waitKey(int(1000/fps)) == ord("q"):
-            break
-        cv2.imshow("Winner", frame)
-        #if val != 'eof' and audio_frame is not None:
-        #    #audio
-        #    img, t = audio_frame
-
-        # run at fps
-        time.sleep(1/fps)
-
-    video.release()
-    cv2.destroyAllWindows()
+    socket.send_string(condition)
 
 
 def log_info(message):
@@ -167,9 +107,6 @@ def update_button_status():
         for i in buttons_info:
             if buttons_info[i]['SSID'] == winner_ssid[1]:
                 log_debug(f"Button {i} is the winner")
-                # Start video playback in a separate thread
-                # video_thread = threading.Thread(target=play_video, args=(f"winner{i}",))
-                # video_thread.start()
                 play_video(f"winner{i}")
                 dpg.configure_item(f'button_shape_{i}', color=winner_bg_color, fill=winner_bg_color)
                 return
@@ -184,9 +121,7 @@ def ping_button_location(button_id):
 
 def on_ping_button_clicked(sender):
     id = int(sender[-1])
-    # video_thread = threading.Thread(target=play_video, args=(f"winner{id}",))
-    # video_thread.start()
-    # play_video(f"winner{id}")
+    play_video(f"winner{id}")
 
     if dpg.is_item_hovered(sender):
         if id > len(buttons_info):
@@ -288,8 +223,6 @@ def main(args):
 
     log_level = args.log_level
 
-    mp4_config = load_json_file(args.mp4_config)
-
     text_color = (255, 255, 255)
     text_size = 15
 
@@ -344,6 +277,5 @@ def main(args):
 if __name__ == "__main__":
     args = argparse.ArgumentParser(description="MT24 Buzzer GUI")
     args.add_argument("--log_level", type=int, default=2, help="Log level")
-    args.add_argument("--mp4_config", type=str, default="buzzer_mp4_config.json", help="Path to the JSON file containing the mp4 paths for different conditions")
     args = args.parse_args()
     main(args)
