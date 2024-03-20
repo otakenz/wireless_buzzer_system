@@ -7,6 +7,7 @@ import argparse
 import zmq
 
 serial_port = None  # Store the serial port object
+winner_id = 0
 
 online_bg_color = (128, 128, 128)
 offline_bg_color = (50, 50, 50)
@@ -23,6 +24,8 @@ socket.bind("tcp://127.0.0.1:5555")
 def play_video(condition):
     socket.send_string(condition)
 
+def update_score(group_num, increment):
+    socket.send_string(f"{group_num},{increment}")
 
 def log_info(message):
     global logx
@@ -91,6 +94,7 @@ def update_ports_combo():
     dpg.configure_item("port_selection", items=port_names)
 
 def update_button_status():
+    global winner_id
     # Check if serial port exist and is open
     if not (serial_port is not None and serial_port.is_open):
         return
@@ -106,6 +110,7 @@ def update_button_status():
         log_debug(f"Winner SSID: {winner_ssid[1]}")
         for i in buttons_info:
             if buttons_info[i]['SSID'] == winner_ssid[1]:
+                winner_id = i
                 log_debug(f"Button {i} is the winner")
                 play_video(f"winner{i}")
                 dpg.configure_item(f'button_shape_{i}', color=winner_bg_color, fill=winner_bg_color)
@@ -155,7 +160,14 @@ def on_scan_click():
 
     scanning_buttons()
 
-
+def on_increment_click():
+    log_info("Incrementing points")
+    update_score(winner_id,"1")
+    
+def on_decrement_click():
+    log_info("Decrementing points")
+    update_score(winner_id,"-1")
+        
 def scanning_buttons():
     if not (serial_port is not None and serial_port.is_open):
         return
@@ -243,7 +255,7 @@ def main(args):
             dpg.add_button(label="SCAN", tag='scan_button', callback=on_scan_click, enabled=False, width=100, height=50)
 
 
-    with dpg.window(label="Buzzer Status", tag="buzzer_list", pos=(0, 150), width=1280, height=300, no_close=True):
+    with dpg.window(label="Buzzer Status", tag="buzzer_list", pos=(0, 150), width=1280, height=250, no_close=True):
         with dpg.group(horizontal=True, horizontal_spacing=10):
             for i in range(1,6):
                 with dpg.drawlist(width=240, height=200, pos=(200*(i), 0), tag=f'button_drawlist_{i}', callback=on_ping_button_clicked):
@@ -255,8 +267,12 @@ def main(args):
                     dpg.draw_text((x, y+90), "RSSI: None", color=text_color, size=text_size, tag=f'button_rssi_{i}')
                     dpg.draw_text((x, y+120), "Battery: None", color=text_color, size=text_size, tag=f'button_battery_{i}')
 
+    with dpg.window(label="Increment points", no_close=True, width=800, height=80, pos=(0, 400)):
+        with dpg.group(horizontal=True):
+            dpg.add_button(label="+1", tag="Plus1", callback=on_increment_click, enabled=True, width=100, height=50)
+            dpg.add_button(label="-1", tag="Minus1", callback=on_decrement_click, enabled=True, width=100, height=50)
 
-    with dpg.window(label="Logging", tag="log", pos=(0, 470), width=1280, height=300, no_close=True):
+    with dpg.window(label="Logging", tag="log", pos=(0, 500), width=1280, height=300, no_close=True):
         logx = mvLogger(parent="log")
         logx.log_level = log_level
 
