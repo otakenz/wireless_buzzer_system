@@ -5,8 +5,10 @@ import ast
 from logger import mvLogger
 import argparse
 import zmq
+import re
 
 serial_port = None  # Store the serial port object
+winner_id = 0
 
 online_bg_color = (128, 128, 128)
 offline_bg_color = (50, 50, 50)
@@ -16,13 +18,19 @@ winner_bg_color = (0, 255, 0)
 buttons_info = {}
 
 context = zmq.Context()
+#mp4
 socket = context.socket(zmq.PUSH)
 socket.bind("tcp://127.0.0.1:5555")
+#scoreboard
+socket_score = context.socket(zmq.PUSH)
+socket_score.bind("tcp://127.0.0.1:5556")
 
 
 def play_video(condition):
     socket.send_string(condition)
 
+def update_score(group_num, increment):
+    socket_score.send_string(f"{group_num},{increment}")
 
 def log_info(message):
     global logx
@@ -91,6 +99,7 @@ def update_ports_combo():
     dpg.configure_item("port_selection", items=port_names)
 
 def update_button_status():
+    global winner_id
     # Check if serial port exist and is open
     if not (serial_port is not None and serial_port.is_open):
         return
@@ -106,6 +115,7 @@ def update_button_status():
         log_debug(f"Winner SSID: {winner_ssid[1]}")
         for i in buttons_info:
             if buttons_info[i]['SSID'] == winner_ssid[1]:
+                winner_id = i
                 log_debug(f"Button {i} is the winner")
                 play_video(f"winner{i}")
                 dpg.configure_item(f'button_shape_{i}', color=winner_bg_color, fill=winner_bg_color)
@@ -155,7 +165,19 @@ def on_scan_click():
 
     scanning_buttons()
 
-
+def process_score_input():
+    input_value = dpg.get_value("Input Field")
+    if re.match(r'^\d+\s-?\d+$', input_value):
+        group_num, points = input_value.split(" ")
+        if 1 <= int(group_num) <= 5:
+            log_info(f"Group {group_num} is getting {points} points!")
+            update_score(group_num, points)
+        else:
+            log_info(f"Invalid Group number! Please try again")
+    else:
+        log_info(f"Invalid input! Please try again")
+    dpg.set_value("Input Field", "")
+        
 def scanning_buttons():
     if not (serial_port is not None and serial_port.is_open):
         return
@@ -243,7 +265,7 @@ def main(args):
             dpg.add_button(label="SCAN", tag='scan_button', callback=on_scan_click, enabled=False, width=100, height=50)
 
 
-    with dpg.window(label="Buzzer Status", tag="buzzer_list", pos=(0, 150), width=1280, height=300, no_close=True):
+    with dpg.window(label="Buzzer Status", tag="buzzer_list", pos=(0, 150), width=1280, height=250, no_close=True):
         with dpg.group(horizontal=True, horizontal_spacing=10):
             for i in range(1,6):
                 with dpg.drawlist(width=240, height=200, pos=(200*(i), 0), tag=f'button_drawlist_{i}', callback=on_ping_button_clicked):
@@ -255,8 +277,11 @@ def main(args):
                     dpg.draw_text((x, y+90), "RSSI: None", color=text_color, size=text_size, tag=f'button_rssi_{i}')
                     dpg.draw_text((x, y+120), "Battery: None", color=text_color, size=text_size, tag=f'button_battery_{i}')
 
+    with dpg.window(label="Score Input", width=800, height=100, pos=(0, 400),  no_close=True):
+        dpg.add_text("Input the GROUP number follow by the SCORE given (separated by space), ie: '5 2' means Group 5 will add 2 points")
+        dpg.add_input_text(tag="Input Field", width=400, on_enter=True, callback=process_score_input)
 
-    with dpg.window(label="Logging", tag="log", pos=(0, 470), width=1280, height=300, no_close=True):
+    with dpg.window(label="Logging", tag="log", pos=(0, 500), width=1280, height=300, no_close=True):
         logx = mvLogger(parent="log")
         logx.log_level = log_level
 
