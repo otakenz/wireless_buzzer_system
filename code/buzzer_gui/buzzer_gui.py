@@ -49,18 +49,6 @@ def log_error(message):
     global logx
     logx.log_error(message)
 
-def on_locking_click(sender):
-    global button_state
-
-    button_state = not button_state
-
-    # button_state will be False after Locked, True after Unlocked
-    if button_state:
-        dpg.configure_item(sender, label="Unlocked")
-        log_debug("Unlocked")
-    else:
-        dpg.configure_item(sender, label="Locked")
-        log_debug("Locked")
 
 def find_esp32_ports():
     ports_found = {}  # Create a dictionary to store the COM port of the ESP32 device
@@ -104,6 +92,25 @@ def on_port_select_button_click():
         log_info(f"Serial port opened: {selected_port}")
     else:
         log_error(f"Failed to open serial port: {selected_port}")
+
+def on_locking_click(sender):
+    global button_state, serial_port
+
+    if not (serial_port is not None and serial_port.is_open):
+        log_info("Serial port already opened")
+        return
+
+    button_state = not button_state
+
+    # button_state will be False after Locked, True after Unlocked
+    if button_state:
+        dpg.configure_item(sender, label="Unlocked")
+        serial_port.write(b'u')
+        log_debug("Unlocked")
+    else:
+        dpg.configure_item(sender, label="Locked")
+        serial_port.write(b'l')
+        log_debug("Locked")
 
 
 def update_ports_combo():
@@ -157,7 +164,7 @@ def on_ping_button_clicked(sender):
             log_warning(f"Serial port not open, unable to ping button {id}")
 
 def on_reset_click():
-    global winner_id
+    global winner_id, button_state
     if not (serial_port is not None and serial_port.is_open):
         return
 
@@ -169,6 +176,8 @@ def on_reset_click():
             log_debug(f"Resetting button {i}")
             dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
             dpg.configure_item("Lock/Unlock", label="Locked")
+            button_state  = False
+            serial_port.write(b'l')
 
 # def on_scan_click(sender, app_data, user_data):
 def on_scan_click():
@@ -315,6 +324,7 @@ def main(args):
         # insert here any code you would like to run in the render loop
         update_ports_combo()
         if button_state:
+            # log_debug(f"Button state {button_state}")
             update_button_status()
         # scanning_buttons()
         dpg.render_dearpygui_frame()

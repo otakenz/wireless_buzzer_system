@@ -162,6 +162,10 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
 
   memcpy(&controllerData, data, sizeof(controllerData));
 
+  if (controllerData.lock) {
+    return;
+  }
+
   if (controllerData.pressed) {
     if (compareMacAddress(controllerData.winner_mac, buttonData.local_mac)) {
       println("Controller: You won!");

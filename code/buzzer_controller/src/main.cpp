@@ -40,17 +40,11 @@ String SSID = "";
 int32_t RSSI = 0;
 String BSSIDstr = "";
 
-constexpr char buttons_ssid[] = {"Slave:DC:54:75:5D:AE:C8"
-                                 "Slave:DC:54:75:62:06:18"
-                                 "Slave:DC:54:75:93:35:3C"
-                                 "Slave:DC:54:75:62:50:FC"
-                                 "Slave:EC:DA:3B:BE:8C:88"
-                                 "Slave:64:E8:33:80:BE:FC"
-                                 "Slave:54:32:04:89:27:E4"
-                                 "Slave:54:32:04:89:15:50"
-                                 "Slave:54:32:04:88:E9:24"
-                                 "Slave:54:32:04:87:58:94"
-                                 "Slave:54:32:04:87:27:C4"};
+constexpr char buttons_ssid[] = {"Slave:54:32:04:87:B5:A4"
+                                 "Slave:54:32:04:87:B2:B0"
+                                 "Slave:54:32:04:89:06:8C"
+                                 "Slave:54:32:04:87:4C:EC"
+                                 "Slave:64:E8:33:80:BE:FC"};
 /* "Slave:54:32:04:87:4C:EC"}; */
 
 constexpr uint8_t broadcast_mac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -158,7 +152,8 @@ void manageSlave() {
 // Scan for slaves in AP mode
 void ScanForSlave() {
   int8_t scanResults =
-      WiFi.scanNetworks(false, false, false, 300, CHANNEL, buttons_ssid);
+      /* WiFi.scanNetworks(false, false, false, 300, CHANNEL, buttons_ssid); */
+      WiFi.scanNetworks(false, false, false, 300, CHANNEL);
   // reset slaves
   memset(slaves, 0, sizeof(slaves));
   SlaveCnt = 0;
@@ -277,6 +272,10 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
     return;
   }
 
+  if (controllerData.lock) {
+    return;
+  }
+
   auto macStr = macToString(mac_addr);
 
   print("Last Packet Recv from: ");
@@ -306,6 +305,10 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
 }
 
 void ping_button(const uint8_t *mac_addr) {
+  if (controllerData.lock) {
+    return;
+  }
+
   controllerData.ping = true;
   auto result = esp_now_send(mac_addr, (uint8_t *)&controllerData,
                              sizeof(controllerData));
@@ -336,6 +339,8 @@ void setup() {
     return;
   }
   esp_now_register_recv_cb(OnDataRecv);
+
+  controllerData.lock = true;
 }
 
 void loop() {
@@ -344,8 +349,8 @@ void loop() {
 
     // Scan for slaves
     if (msg == 's') {
-      pcData.RSSI[0] = 0;
-      memset(&pcData.buttons_mac, 0, sizeof(pcData.buttons_mac));
+      /* pcData.RSSI[0] = 0; */
+      /* memset(&pcData.buttons_mac, 0, sizeof(pcData.buttons_mac)); */
       ScanForSlave();
       for (int i = 0; i < regSlavesCnt; i++) {
         Serial.println("ID;" + String(i) + "|" + "SSID;" +
@@ -370,6 +375,15 @@ void loop() {
     // Lock all buttons
     if (msg == 'l') {
       controllerData.lock = true;
+      controllerData.pressed = false;
+      auto result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
+                                 sizeof(controllerData));
+      check_esp_err(result);
+    }
+
+    // Unlock all button
+    if (msg == 'u') {
+      controllerData.lock = false;
       controllerData.pressed = false;
       auto result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
                                  sizeof(controllerData));
