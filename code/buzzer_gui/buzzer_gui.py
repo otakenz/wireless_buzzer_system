@@ -166,6 +166,7 @@ def on_reset_click():
         if buttons_info[i]['SSID'] != "00:00:00:00:00:00":
             log_debug(f"Resetting button {i}")
             dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
+            dpg.configure_item("Lock/Unlock", label="Locked")
 
 # def on_scan_click(sender, app_data, user_data):
 def on_scan_click():
