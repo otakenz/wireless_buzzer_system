@@ -369,7 +369,7 @@ void loop() {
 
     // Lock all buttons
     if (msg == 'l') {
-      controllerData.lock = true
+      controllerData.lock = true;
       controllerData.pressed = false;
       auto result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
                                  sizeof(controllerData));

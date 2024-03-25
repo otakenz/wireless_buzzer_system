@@ -51,14 +51,16 @@ def log_error(message):
 
 def on_locking_click(sender):
     global button_state
-    
+
     button_state = not button_state
-    
+
     # button_state will be False after Locked, True after Unlocked
     if button_state:
         dpg.configure_item(sender, label="Unlocked")
+        log_debug("Unlocked")
     else:
         dpg.configure_item(sender, label="Locked")
+        log_debug("Locked")
 
 def find_esp32_ports():
     ports_found = {}  # Create a dictionary to store the COM port of the ESP32 device
@@ -177,10 +179,10 @@ def on_scan_click():
     log_info("Scanning to update buttons data")
 
     scanning_buttons()
-    
+
 def process_score_input():
     points = dpg.get_value("Input Field")
-    
+
     if re.match(r'^-?\d+$', points):
         if dpg.is_item_hovered("Minus"):
             points = -int(points)
@@ -191,7 +193,7 @@ def process_score_input():
             log_info(f"Invalid Group number! Please try again")
     else:
         log_info(f"Invalid input! Please try again")
-        
+
 def scanning_buttons():
     if not (serial_port is not None and serial_port.is_open):
         return
@@ -297,7 +299,7 @@ def main(args):
             dpg.add_input_text(tag="Input Field", width=400)
             dpg.add_button(label="+", tag="Plus", height=40, width=100, callback=process_score_input)
             dpg.add_button(label="-", tag="Minus", height=40, width=100, callback=process_score_input)
-    
+
     with dpg.window(label="Locking Mechanism", width=300, height=100, pos=(850, 400), no_close=True):
         dpg.add_button(label="Locked", tag="Lock/Unlock", height=60, width=300, callback=on_locking_click)
 

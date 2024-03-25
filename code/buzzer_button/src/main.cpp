@@ -107,25 +107,6 @@ void colorWipe(uint32_t c) {
   }
 }
 
-/* float get_battery_percentage() { */
-/* auto vbat = analogReadMilliVolts(ADC_PIN); */
-/* Serial.println("Battery voltage: " + String(vbat)); */
-/* delayMicroseconds(100); */
-/* int sum = 0; */
-/* for (int i = 0; i < 100; i++) { */
-/*   sum = sum + analogRead(ADC_PIN); */
-/* } */
-/* float result = sum / 100.0; */
-
-/* if (result >= 3889) { */
-/*   return 100; */
-/* } else if (result <= 2778) { */
-/*   return 0; */
-/* } else { */
-/*   return (result - 2778) / 1111 * 100; */
-/* } */
-/* } */
-
 void sendButtonData() {
   if (controllerData.pressed) {
     return;
