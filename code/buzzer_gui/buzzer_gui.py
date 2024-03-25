@@ -9,6 +9,7 @@ import re
 
 serial_port = None  # Store the serial port object
 winner_id = 0
+button_state = False # Initialized with Locked
 
 online_bg_color = (128, 128, 128)
 offline_bg_color = (50, 50, 50)
@@ -48,6 +49,16 @@ def log_error(message):
     global logx
     logx.log_error(message)
 
+def on_locking_click(sender):
+    global button_state
+    
+    button_state = not button_state
+    
+    # button_state will be False after Locked, True after Unlocked
+    if button_state:
+        dpg.configure_item(sender, label="Unlocked")
+    else:
+        dpg.configure_item(sender, label="Locked")
 
 def find_esp32_ports():
     ports_found = {}  # Create a dictionary to store the COM port of the ESP32 device
@@ -165,9 +176,6 @@ def on_scan_click():
     log_info("Scanning to update buttons data")
 
     scanning_buttons()
-
-def on_locking_click():
-    lock = 0
     
 def process_score_input():
     points = dpg.get_value("Input Field")
@@ -290,7 +298,7 @@ def main(args):
             dpg.add_button(label="-", tag="Minus", height=40, width=100, callback=process_score_input)
     
     with dpg.window(label="Locking Mechanism", width=300, height=100, pos=(850, 400), no_close=True):
-        dpg.add_button(label="Lock/Unlock", tag="Lock", height=60, width=300, callback=on_locking_click)
+        dpg.add_button(label="Locked", tag="Lock/Unlock", height=60, width=300, callback=on_locking_click)
 
     with dpg.window(label="Logging", tag="log", pos=(0, 500), width=1280, height=300, no_close=True):
         logx = mvLogger(parent="log")
@@ -303,7 +311,8 @@ def main(args):
     while dpg.is_dearpygui_running():
         # insert here any code you would like to run in the render loop
         update_ports_combo()
-        update_button_status()
+        if button_state:
+            update_button_status()
         # scanning_buttons()
         dpg.render_dearpygui_frame()
 
