@@ -130,6 +130,7 @@ def ping_button_location(button_id):
     serial_port.write(bytes(f"{str(button_id)}", 'utf-8'))
 
 def on_ping_button_clicked(sender):
+    global winner_id
     id = int(sender[-1])
 
     if dpg.is_item_hovered(sender):
@@ -143,11 +144,12 @@ def on_ping_button_clicked(sender):
             log_warning(f"Serial port not open, unable to ping button {id}")
 
 def on_reset_click():
+    global winner_id
     if not (serial_port is not None and serial_port.is_open):
         return
 
     serial_port.write(b'r')
-
+    winner_id = 0
     log_info("Resetting game")
     for i in range(1, len(buttons_info)+1):
         if buttons_info[i]['SSID'] != "00:00:00:00:00:00":
@@ -164,18 +166,22 @@ def on_scan_click():
 
     scanning_buttons()
 
+def on_locking_click():
+    lock = 0
+    
 def process_score_input():
-    input_value = dpg.get_value("Input Field")
-    if re.match(r'^\d+\s-?\d+$', input_value):
-        group_num, points = input_value.split(" ")
-        if 1 <= int(group_num) <= 5:
-            log_info(f"Group {group_num} is getting {points} points!")
-            update_score(group_num, points)
+    points = dpg.get_value("Input Field")
+    
+    if re.match(r'^-?\d+$', points):
+        if dpg.is_item_hovered("Minus"):
+            points = -int(points)
+        if 1 <= int(winner_id) <= 5:
+            log_info(f"Group {winner_id} is getting {points} points!")
+            update_score(winner_id, points)
         else:
             log_info(f"Invalid Group number! Please try again")
     else:
         log_info(f"Invalid input! Please try again")
-    dpg.set_value("Input Field", "")
         
 def scanning_buttons():
     if not (serial_port is not None and serial_port.is_open):
@@ -276,9 +282,15 @@ def main(args):
                     dpg.draw_text((x, y+90), "RSSI: None", color=text_color, size=text_size, tag=f'button_rssi_{i}')
                     dpg.draw_text((x, y+120), "Battery: None", color=text_color, size=text_size, tag=f'button_battery_{i}')
 
-    with dpg.window(label="Score Input", width=800, height=100, pos=(0, 400),  no_close=True):
-        dpg.add_text("Input the GROUP number follow by the SCORE given (separated by space), ie: '5 2' means Group 5 will add 2 points")
-        dpg.add_input_text(tag="Input Field", width=400, on_enter=True, callback=process_score_input)
+    with dpg.window(label="Score Input", width=800, height=100, pos=(0, 400), no_close=True):
+        dpg.add_text("Input the points to be added or deducted")
+        with dpg.group(horizontal=True):
+            dpg.add_input_text(tag="Input Field", width=400)
+            dpg.add_button(label="+", tag="Plus", height=40, width=100, callback=process_score_input)
+            dpg.add_button(label="-", tag="Minus", height=40, width=100, callback=process_score_input)
+    
+    with dpg.window(label="Locking Mechanism", width=300, height=100, pos=(850, 400), no_close=True):
+        dpg.add_button(label="Lock/Unlock", tag="Lock", height=60, width=300, callback=on_locking_click)
 
     with dpg.window(label="Logging", tag="log", pos=(0, 500), width=1280, height=300, no_close=True):
         logx = mvLogger(parent="log")

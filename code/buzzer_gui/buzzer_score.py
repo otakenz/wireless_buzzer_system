@@ -39,23 +39,27 @@ def main(args):
     dpg.setup_dearpygui()
     
     # Add scoreboard elements
-    with dpg.window(label="Scoreboard", tag="buzzer_score", pos=(0, 700), width=1400, height=50, no_close=True):
+#    with dpg.window(label="Scoreboard", tag="buzzer_score", pos=(x_pos, y_pos), width=width, height=height, no_close=True):
+    with dpg.window(label="Scoreboard", tag="buzzer_score", no_close=True):
         with dpg.group(horizontal=True, horizontal_spacing=10):
             for i in range(1,6):
-                with dpg.drawlist(width=270, height=50, pos=(200*(i), 0)):
-                    dpg.draw_rectangle((0, 0), (240, 50))
-                    dpg.draw_text((50, 0), f"Team {i}", size=15, tag=f'Team {i}')
-                    dpg.draw_text((50, 10), str(score_values[i-1]), size=40, tag=f"Teamscore {i}")
+                with dpg.drawlist(width=270, height=height-50, pos=(200*(i), 0)):
+                    dpg.draw_rectangle((0, 0), (240, height-50))
+                    dpg.draw_text((40, 20), f"Team {i}", size=50, tag=f'Team {i}')
+                    dpg.draw_text((60, 70), str(score_values[i-1]), size=100, tag=f"Teamscore {i}")
     
     dpg.show_viewport()
 
     while dpg.is_dearpygui_running():
-        message = socket_score.recv_string()
-        group_num, points = message.split(",")
-        group_num = int(group_num)
-        points = int(points)
-        update_score(group_num, points)
-        
+        try:
+            message = socket_score.recv_string(flags=zmq.NOBLOCK)
+            group_num, points = message.split(",")
+            group_num = int(group_num)
+            points = int(points)
+            update_score(group_num, points)
+        except zmq.Again as e:
+            pass
+
         dpg.render_dearpygui_frame()
 
     dpg.destroy_context()
