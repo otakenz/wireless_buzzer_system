@@ -17,6 +17,7 @@ typedef struct struct_message_button {
 
 typedef struct struct_message_controller {
   bool pressed;
+  bool lock;
   bool ping;
   uint8_t winner_mac[6];
 } struct_message_controller;
@@ -361,6 +362,15 @@ void loop() {
       someone_has_pressed = false;
       controllerData.pressed = false;
       controllerData.ping = false;
+      auto result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
+                                 sizeof(controllerData));
+      check_esp_err(result);
+    }
+
+    // Lock all buttons
+    if (msg == 'l') {
+      controllerData.lock = true
+      controllerData.pressed = false;
       auto result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
                                  sizeof(controllerData));
       check_esp_err(result);

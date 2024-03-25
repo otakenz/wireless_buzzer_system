@@ -39,6 +39,7 @@ typedef struct struct_message_button {
 
 typedef struct struct_message_controller {
   bool pressed;
+  bool lock;
   bool ping;
   uint8_t winner_mac[6];
 } struct_message_controller;
@@ -127,6 +128,9 @@ void colorWipe(uint32_t c) {
 
 void sendButtonData() {
   if (controllerData.pressed) {
+    return;
+  }
+  if (controllerData.lock) {
     return;
   }
   esp_read_mac(buttonData.local_mac, ESP_MAC_WIFI_STA);
@@ -280,6 +284,8 @@ void setup() {
   timerAttachInterrupt(read_button_timer, &onButtonTimer, true);
   timerAlarmWrite(read_button_timer, 20000, true);
   timerAlarmEnable(read_button_timer);
+
+  controllerData.lock = true;
 }
 
 uint8_t count = 0;
