@@ -1,30 +1,30 @@
 #include "custom_print.h"
+#include "esp32-hal-adc.h"
 #include "esp32-hal-gpio.h"
 #include "esp32-hal-timer.h"
 #include "esp_mac.h"
 #include <Adafruit_NeoPixel.h>
 #include <WiFi.h>
 #include <cstdint>
+#include <cstdlib>
 #include <esp_now.h>
 #include <esp_wifi.h> // only for esp_wifi_set_channel()
+#include <sys/types.h>
 
 #define CHANNEL 1
 
-// onboard led
-/* #define LED_PIN 10 */
-#define ADC_ENABLE_PIN 6
-
-// beetle setting
-/* #define LED_PIN 6 */
-/* #define BUTTON_PIN 1 */
-/* #define LED_COUNT 1 */
-/* #define ADC_PIN 0 */
-
 // xiao setting
 #define LED_PIN 7
+#define BUZZER_PIN 6
 #define BUTTON_PIN 5
+#define ADC_PIN 3
 #define LED_COUNT 1
-#define ADC_PIN 4
+
+// battery
+#define NUM_READINGS 16          // Number of readings for moving average
+uint32_t readings[NUM_READINGS]; // Array to store voltage readings
+uint8_t i = 0;    // i to track the current position in the readings array
+uint32_t sum = 0; // Sum of voltage readings
 
 Adafruit_NeoPixel RGB_LED =
     Adafruit_NeoPixel(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -106,25 +106,34 @@ void colorWipe(uint32_t c) {
   }
 }
 
-uint8_t get_battery_voltage() {
-  digitalWrite(ADC_ENABLE_PIN, LOW);
-  delayMicroseconds(10);
-  int sum = 0;
-  for (int i = 0; i < 100; i++) {
-    sum = sum + analogRead(ADC_PIN);
-  }
-  float result = sum / 100.0;
-  digitalWrite(ADC_ENABLE_PIN, HIGH);
-  return static_cast<uint8_t>(float(result) * (1.42) - 50);
-}
+/* float get_battery_percentage() { */
+/* auto vbat = analogReadMilliVolts(ADC_PIN); */
+/* Serial.println("Battery voltage: " + String(vbat)); */
+/* delayMicroseconds(100); */
+/* int sum = 0; */
+/* for (int i = 0; i < 100; i++) { */
+/*   sum = sum + analogRead(ADC_PIN); */
+/* } */
+/* float result = sum / 100.0; */
+
+/* if (result >= 3889) { */
+/*   return 100; */
+/* } else if (result <= 2778) { */
+/*   return 0; */
+/* } else { */
+/*   return (result - 2778) / 1111 * 100; */
+/* } */
+/* } */
 
 void sendButtonData() {
   if (controllerData.pressed) {
     return;
   }
   esp_read_mac(buttonData.local_mac, ESP_MAC_WIFI_STA);
-  /* buttonData.battery_level = get_battery_voltage(); */
-  buttonData.battery_level = random(0, 100);
+  /* buttonData.battery_level = static_cast<uint8_t>(get_battery_percentage());
+   */
+  /* Serial.println("Battery level: " + String(buttonData.battery_level)); */
+  /* buttonData.battery_level = random(0, 100); */
   // Send message via ESP-NOW
   println("Sending battery level: " + String(buttonData.battery_level));
 
@@ -183,7 +192,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *data, int data_len) {
   if (controllerData.ping) {
     println("Ping from controller received!");
     controllerData.ping = false;
-    for (uint8_t i = 0; i < 5; i++) {
+    for (uint8_t i = 0; i < 3; i++) {
       colorWipe(RGB_LED.Color(0, 255, 0));
       delay(500);
       colorWipe(RGB_LED.Color(0, 0, 255));
@@ -210,10 +219,13 @@ void setup() {
 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(ADC_PIN, INPUT);
-  pinMode(ADC_ENABLE_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(ADC_ENABLE_PIN, HIGH);
+  pinMode(BUZZER_PIN, OUTPUT);
   analogReadResolution(12);
+  /* analogSetAttenuation(ADC_ATTENDB_MAX); // Set attenuation to 11 dB */
+
+  // Initialize readings array to 0
+  memset(readings, 0, sizeof(uint32_t) * NUM_READINGS);
 
   btStop();
 
@@ -270,6 +282,43 @@ void setup() {
   timerAlarmEnable(read_button_timer);
 }
 
-void loop() {
-  // Chill
+uint8_t count = 0;
+
+uint8_t get_battery_level() {
+  // Read voltage and update rolling
+  uint32_t voltage = analogReadMilliVolts(ADC_PIN); // Read battery voltage
+  sum = sum - readings[i] + voltage;                // Update rolling sum
+  readings[i] = voltage;      // Store current voltage reading in array
+  i = (i + 1) % NUM_READINGS; // Increment i and wrap around if needed
+
+  // Calculate moving average
+  float Vbattf =
+      2 * sum /
+      (NUM_READINGS * 1000.0); // Calculate average voltage in volts (V)
+
+  // Calculate voltage percentage
+  float voltagePercentage;
+  if (Vbattf >= 4.2) {
+    voltagePercentage = 100;
+  } else if (Vbattf <= 3) {
+    voltagePercentage = 0;
+  } else {
+    voltagePercentage = (Vbattf - 3) / (4.2 - 3) * 100;
+  }
+
+  Serial.println("Battery voltage: " + String(Vbattf, 3) + " V");
+  Serial.println(voltagePercentage, 1);
+
+  if (count < 20) {
+    delay(1000);
+    count++;
+  } else {
+    delay(1000);
+    /* delay(5000); */
+  }
+
+  return static_cast<uint8_t>(voltagePercentage);
 }
+
+// Main loop
+void loop() { buttonData.battery_level = get_battery_level(); }

@@ -50,6 +50,7 @@ constexpr char buttons_ssid[] = {"Slave:DC:54:75:5D:AE:C8"
                                  "Slave:54:32:04:88:E9:24"
                                  "Slave:54:32:04:87:58:94"
                                  "Slave:54:32:04:87:27:C4"};
+/* "Slave:54:32:04:87:4C:EC"}; */
 
 constexpr uint8_t broadcast_mac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 

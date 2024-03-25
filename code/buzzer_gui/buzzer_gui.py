@@ -131,7 +131,6 @@ def ping_button_location(button_id):
 
 def on_ping_button_clicked(sender):
     id = int(sender[-1])
-    play_video(f"winner{id}")
 
     if dpg.is_item_hovered(sender):
         if id > len(buttons_info):
