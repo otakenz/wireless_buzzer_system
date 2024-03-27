@@ -39,7 +39,6 @@ def main(args):
     dpg.setup_dearpygui()
     
     # Add scoreboard elements
-#    with dpg.window(label="Scoreboard", tag="buzzer_score", pos=(x_pos, y_pos), width=width, height=height, no_close=True):
     with dpg.window(label="Scoreboard", tag="buzzer_score", no_close=True):
         with dpg.group(horizontal=True, horizontal_spacing=10):
             for i in range(1,6):

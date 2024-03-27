@@ -1,0 +1,38 @@
+Prerequisite of your IDE: PlatformIO extension, libraries (cv2,zmq,dearpygui)
+
+buzzer_mp4_config.json: To update the MP4 files, reposition and resize the MP4 video GUI
+buzzer_score_config.json: To update the starting score of the 5 teams, reposition and resize the scoreboard GUI
+
+Here are the instructions on how you should run the program:
+
+Initial setup before the start of the game, even before the players are on stage ...
+1. Run the following three python scripts in a separate terminal (they are located under /wireless_buzzer_system/code/buzzer_gui/)
+    a. buzzer_gui.py (Main GUI for us to check status, control button behaviour or debug)
+    b. buzzer_mp4.py (GUI to display the media for the fastest button)
+    c. buzzer_score.py (GUI to display the scoreboard of the current game)
+2. Connecting the buttons
+    a. Plug in the main controller to your PC via USB-C. Click the dropdown in the COM window, and choose your port. Then click 'Select' on your right.
+    b. Switch on the buttons, then click 'SCAN'.
+        i. You should see the number of buttons that was switched on should match the number of buttons online from your GUI. If it matches, jump to step 3, else readon.
+        ii. In case they are not tallied (ie: buttons switched on but not detected by your GUI), click the Button box from your GUI to ping each button (pinged button will flash).
+        iii. By pinging it one by one, you can identify which button is having issue and not lighted up.
+        iv. Switch off the problematic button and repeat Step 2b.
+3. Now you should have all the buttons on and detected by your GUI, arrange them accordingly on stage for the 5 players.
+    a. Make sure they are in order by pinging it again (click the Button box from your GUI).
+    NOTE: Do not press 'SCAN' more than one time or it will mess up the button sequence and you will need to rearrange the button.
+
+Now you should be ready to start the game ...
+4. Locking Mechanism
+    a. By default, the GUI should show 'Locked' at the Locking Mechanism Window on your right. This is to lock the button and block all the inputs and outputs from our system before players are allowed to push the button and answer.
+    b. Click on the 'Locked' button once a question is ready to be answer and players are ready to press the button, so that the button will be unlocked for answering.
+    c. To make sure, you should see the Locked button is now showing Unlocked.
+5. Scoring
+    a. Once there is a winner for the fastest button pressed, the MP4 GUI pop up indicating which team is the fastest to press the button.
+    b. Input how many points to award or deduct for this team in the Score Input window, depending if they answer the question correctly or not.
+    c. Press '+' or '-' based on the situation whether they are getting points or deducting points.
+    d. Scores updated in the scoreboard GUI.
+6. Resetting the game
+    a. Press 'RESET' from your GUI after one round is over, to reset the game and prepare for the next round.
+    b. When you reset the game, the button will automatically be Locked and now repeat from Step 4b.
+    NOTE: If the number of points to be added/subtracted is the same throughout the entire round you can skip Step 5b.
+
