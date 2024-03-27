@@ -26,6 +26,7 @@ typedef struct struct_message_pc {
   uint8_t buttons_mac[NUMSLAVES][6];
   uint8_t battery_level[NUMSLAVES];
   int32_t RSSI[NUMSLAVES];
+  uint8_t status[NUMSLAVES];
 } struct_message_pc;
 
 struct_message_button buttonData;
@@ -34,18 +35,18 @@ struct_message_pc pcData;
 esp_now_peer_info_t broadcastInfo;
 
 esp_now_peer_info_t slaves[NUMSLAVES] = {};
-int SlaveCnt = 0;
+
 int regSlavesCnt = 0;
 String SSID = "";
 int32_t RSSI = 0;
 String BSSIDstr = "";
 
-constexpr char buttons_ssid[] = {"Slave:54:32:04:87:B5:A4"
-                                 "Slave:54:32:04:87:B2:B0"
-                                 "Slave:54:32:04:89:06:8C"
-                                 "Slave:54:32:04:87:4C:EC"
-                                 "Slave:64:E8:33:80:BE:FC"};
-/* "Slave:54:32:04:87:4C:EC"}; */
+/* const String buttons_ssid[] = {"54:32:04:87:B5:A4", "54:32:04:87:B2:B0", */
+/*                                "54:32:04:89:06:8C", "54:32:04:87:4C:EC", */
+/*                                "64:E8:33:80:BE:FC"}; */
+const String buttons_ssid[] = {"54:32:04:89:27:E4", "54:32:04:87:27:C4",
+                               "54:32:04:87:27:CC", "54:32:04:87:27:DC",
+                               "54:32:04:87:27:EC"};
 
 constexpr uint8_t broadcast_mac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -113,31 +114,58 @@ void configDeviceAP() {
   }
 }
 
+bool compareMacAddress(const uint8_t *mac1, const uint8_t *mac2) {
+  for (int i = 0; i < 6; ++i) {
+    if (mac1[i] != mac2[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+String macToString(const uint8_t *mac) {
+  char macStr[18]; // Buffer to hold the string representation of the MAC
+
+  // Format the MAC address into the buffer
+  snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0],
+           mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+  // Return the formatted MAC address as a String
+  return String(macStr);
+}
+
+void slavesSetUp() {
+  for (int i = 0; i < NUMSLAVES; i++) {
+    uint8_t temp_address[6];
+
+    sscanf(buttons_ssid[i].c_str(), "%x:%x:%x:%x:%x:%x", &temp_address[0],
+           &temp_address[1], &temp_address[2], &temp_address[3],
+           &temp_address[4], &temp_address[5]);
+
+    memcpy(slaves[i].peer_addr, temp_address, 6);
+
+    slaves[i].channel = CHANNEL; // pick a channel
+    slaves[i].encrypt = 0;       // no encryption
+  }
+}
+
 // Check if the slave is already paired with the master.
 // If not, pair the slave with master
 void manageSlave() {
-  if (SlaveCnt == 0) {
-    println("No Slave found to process");
-    return;
-  }
+  for (int i = 0; i < NUMSLAVES; i++) {
+    print("Attempt to pair with Slave: ");
 
-  for (int i = 0; i < SlaveCnt; i++) {
-    print("Slave Found, Processing: ");
+    println(macToString(slaves[i].peer_addr));
 
-    for (int ii = 0; ii < 6; ++ii) {
-      print((uint8_t)slaves[i].peer_addr[ii], HEX);
-      if (ii != 5)
-        print(":");
-    }
-
-    print(" Status: ");
     // check if the peer exists
     bool exists = esp_now_is_peer_exist(slaves[i].peer_addr);
+
     if (!exists && regSlavesCnt < NUMSLAVES) {
       // Slave not paired, attempt pair
       esp_err_t addStatus = esp_now_add_peer(&slaves[i]);
       check_esp_err(addStatus);
       if (addStatus == ESP_OK) {
+        memcpy(&pcData.buttons_mac[i], slaves[i].peer_addr, 6);
         regSlavesCnt++;
       }
       delay(100);
@@ -154,10 +182,10 @@ void ScanForSlave() {
   int8_t scanResults =
       /* WiFi.scanNetworks(false, false, false, 300, CHANNEL, buttons_ssid); */
       WiFi.scanNetworks(false, false, false, 300, CHANNEL);
+
   // reset slaves
-  memset(slaves, 0, sizeof(slaves));
-  SlaveCnt = 0;
-  println("");
+  /* memset(slaves, 0, sizeof(slaves)); */
+  /* println(""); */
 
   if (scanResults == 0) {
     println("No WiFi devices in AP Mode found");
@@ -167,6 +195,8 @@ void ScanForSlave() {
   print("Found ");
   print(scanResults);
   println(" devices ");
+
+  uint8_t count = 0;
 
   for (int i = 0; i < scanResults; ++i) {
     // Print SSID and RSSI for each device found
@@ -180,6 +210,8 @@ void ScanForSlave() {
     if (SSID.indexOf("Slave") != 0)
       continue;
 
+    count++;
+
     // SSID of interest
     print(i + 1);
     print(": ");
@@ -192,66 +224,38 @@ void ScanForSlave() {
     print(")");
     println("");
     // Get BSSID => Mac Address of the Slave
-    int mac[6];
+    uint8_t mac[6];
 
-    if (6 != sscanf(BSSIDstr.c_str(), "%x:%x:%x:%x:%x:%x", &mac[0], &mac[1],
-                    &mac[2], &mac[3], &mac[4], &mac[5]))
+    if (6 != sscanf(SSID.c_str(), "Slave:%x:%x:%x:%x:%x:%x", &mac[0], &mac[1],
+                    &mac[2], &mac[3], &mac[4], &mac[5])) {
+      println("Failed to parse SSID");
       continue;
+    }
 
-    for (uint8_t ii = 0; ii < 6; ++ii) {
-      if (ii == 5) {
-        slaves[SlaveCnt].peer_addr[ii] = (uint8_t)mac[ii] - 1;
+    for (uint8_t i = 0; i < NUMSLAVES; i++) {
+      auto slaveFound = compareMacAddress(mac, pcData.buttons_mac[i]);
+      if (slaveFound) {
+        println("Slave no " + String(i) + " found");
+        pcData.RSSI[i] = RSSI;
+        pcData.status[i] = 1;
       } else {
-        slaves[SlaveCnt].peer_addr[ii] = (uint8_t)mac[ii];
+        println("Slave no " + String(i) + " not found");
+        pcData.RSSI[i] = 0;
+        pcData.status[i] = 0;
       }
     }
-    pcData.RSSI[SlaveCnt] = RSSI;
-    memcpy(&pcData.buttons_mac[SlaveCnt], slaves[SlaveCnt].peer_addr, 6);
-
-    slaves[SlaveCnt].channel = CHANNEL; // pick a channel
-    slaves[SlaveCnt].encrypt = 0;       // no encryption
-    SlaveCnt++;
   }
-  manageSlave();
+  if (count == 0) {
+    // If none of slaves found, reset the RSSI and status
+    for (uint8_t i = 0; i < NUMSLAVES; i++) {
+      pcData.RSSI[i] = 0;
+      pcData.status[i] = 0;
+    }
+  }
+  /* manageSlave(); */
 
   // clean up ram
   WiFi.scanDelete();
-}
-
-uint8_t data = 0;
-// send data
-void sendData() {
-  data++;
-  for (int i = 0; i < SlaveCnt; i++) {
-    const uint8_t *peer_addr = slaves[i].peer_addr;
-    if (i == 0) { // print only for first slave
-      print("Sending: ");
-      println(data);
-    }
-    esp_err_t result = esp_now_send(peer_addr, &data, sizeof(data));
-    check_esp_err(result);
-    delay(100);
-  }
-}
-
-String macToString(const uint8_t *mac) {
-  char macStr[18]; // Buffer to hold the string representation of the MAC
-
-  // Format the MAC address into the buffer
-  snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0],
-           mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-  // Return the formatted MAC address as a String
-  return String(macStr);
-}
-
-bool compareMacAddress(const uint8_t *mac1, const uint8_t *mac2) {
-  for (int i = 0; i < 6; ++i) {
-    if (mac1[i] != mac2[i]) {
-      return false;
-    }
-  }
-  return true;
 }
 
 // callback when data is sent from Master to Slave
@@ -338,7 +342,11 @@ void setup() {
     Serial.println("Failed to add peer");
     return;
   }
+
   esp_now_register_recv_cb(OnDataRecv);
+
+  slavesSetUp();
+  manageSlave();
 
   controllerData.lock = true;
 }
@@ -351,6 +359,7 @@ void loop() {
     if (msg == 's') {
       /* pcData.RSSI[0] = 0; */
       /* memset(&pcData.buttons_mac, 0, sizeof(pcData.buttons_mac)); */
+      println("Scanning for slaves");
       ScanForSlave();
       for (int i = 0; i < regSlavesCnt; i++) {
         Serial.println("ID;" + String(i) + "|" + "SSID;" +
@@ -358,7 +367,8 @@ void loop() {
                        String(pcData.RSSI[i]) +
                        "|"
                        "BAT;" +
-                       String(pcData.battery_level[i]));
+                       String(pcData.battery_level[i]) + "|" + "STA;" +
+                       String(pcData.status[i]));
       }
     }
 
@@ -367,6 +377,7 @@ void loop() {
       someone_has_pressed = false;
       controllerData.pressed = false;
       controllerData.ping = false;
+      println("Reset all buttons");
       auto result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
                                  sizeof(controllerData));
       check_esp_err(result);
@@ -376,6 +387,7 @@ void loop() {
     if (msg == 'l') {
       controllerData.lock = true;
       controllerData.pressed = false;
+      println("Lock all buttons");
       auto result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
                                  sizeof(controllerData));
       check_esp_err(result);
@@ -385,6 +397,7 @@ void loop() {
     if (msg == 'u') {
       controllerData.lock = false;
       controllerData.pressed = false;
+      println("Unlock all buttons");
       auto result = esp_now_send(broadcast_mac, (uint8_t *)&controllerData,
                                  sizeof(controllerData));
       check_esp_err(result);

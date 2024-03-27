@@ -217,14 +217,14 @@ def scanning_buttons():
 
     idx = 0
     # Check if the data is regarding the button
-    # Data format: ID;1|SSID;30:AE:A4:1A:2B:3C|RSSI;-50|BAT;100
+    # Data format: ID;1|SSID;30:AE:A4:1A:2B:3C|RSSI;-50|BAT;100|STA;1
     if "ID" in esp32_data:
         s = esp32_data.split("|")
         for ele in s:
             key = (ele.split(";"))[0] or ""
             value = (ele.split(";"))[1] or ""
             # Create a dictionary to store the button information
-            # e.g. {1: {'SSID': '30:AE:A4:1A:2B:3C ', 'RSSI': '-50', 'BAT': '100'}}
+            # e.g. {1: {'SSID': '30:AE:A4:1A:2B:3C ', 'RSSI': '-50', 'BAT': '100', 'STA': '1'}}
             # TODO: Implement a way to check if data format is strictly adhered (data corruption check)
             if key == "" or value == "":
                 continue
@@ -235,7 +235,7 @@ def scanning_buttons():
                 buttons_info[idx][key] = value
 
     for i in buttons_info:
-        if buttons_info[i]['SSID'] != "00:00:00:00:00:00":
+        if buttons_info[i]['STA'] != "0":
             log_debug(f"Button {i} SSID: {buttons_info[i]['SSID']}")
             dpg.configure_item(f'button_ssid_{i}', text=f"SSID:{buttons_info[i]['SSID']}")
             dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
