@@ -1,13 +1,13 @@
 {
   "width": 1920,
-  "height": 700,
+  "height": 1080,
   "x_pos": 1921,
   "y_pos": 0,
   "mp4_paths": {
-    "winner1": "./assets/Buzzer_1.mp4",
-    "winner2": "./assets/Buzzer_2.mp4",
-    "winner3": "./assets/Buzzer_3.mp4",
-    "winner4": "./assets/Buzzer_4.mp4",
-    "winner5": "./assets/Buzzer_5.mp4"
+    "winner1": "./assets/animations/Buzzer_FA1.mp4",
+    "winner2": "./assets/animations/Buzzer_FA2.mp4",
+    "winner3": "./assets/animations/Buzzer_FA3.mp4",
+    "winner4": "./assets/animations/Buzzer_FA4.mp4",
+    "winner5": "./assets/animations/Buzzer_FA5.mp4"
   }
 }

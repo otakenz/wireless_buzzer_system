@@ -23,9 +23,9 @@ def main(args):
     context = zmq.Context()
     socket_score = context.socket(zmq.PULL)
     socket_score.connect("tcp://127.0.0.1:5556")
-    
+
     score_config = load_json_file(args.score_config)
-    
+
     for i in range(1,6):
         score_values[i-1] = score_config["group_initial_score"][str(i)]
 
@@ -33,20 +33,25 @@ def main(args):
     height = score_config["height"]
     x_pos = score_config["x_pos"]
     y_pos = score_config["y_pos"]
-    
+
     dpg.create_context()
-    dpg.create_viewport(title='Scoreboard', width=width, height=height, x_pos=x_pos, y_pos=y_pos)
+    dpg.create_viewport(title='Scoreboard', width=width, height=height, x_pos=x_pos, y_pos=y_pos, always_on_top=True, resizable=False)
     dpg.setup_dearpygui()
-    
+
+    image_width, image_height, image_channel, image_data = dpg.load_image("./assets/design/carnival4.jpeg")
+
+    with dpg.texture_registry(show=True):
+        dpg.add_static_texture(default_value=image_data, width=image_width, height=image_height, tag="carnival_texture")
+
+
     # Add scoreboard elements
-    with dpg.window(label="Scoreboard", tag="buzzer_score", no_close=True):
-        with dpg.group(horizontal=True, horizontal_spacing=10):
-            for i in range(1,6):
-                with dpg.drawlist(width=270, height=height-50, pos=(200*(i), 0)):
-                    dpg.draw_rectangle((0, 0), (240, height-50))
-                    dpg.draw_text((40, 20), f"Team {i}", size=50, tag=f'Team {i}')
-                    dpg.draw_text((60, 70), str(score_values[i-1]), size=100, tag=f"Teamscore {i}")
-    
+    with dpg.window(label="Scoreboard", tag="buzzer_score", width=width, height=height, no_collapse=True, no_move=True, no_resize=True, no_title_bar=True):
+        for i in range(5):
+            dpg.add_image(texture_tag="carnival_texture", pos=(100+350*i, 10), width=240, height=height-20, tag=f"Image {i+1}")
+            dpg.draw_text((130+350*i, 0), f"Team {i+1}", size=50, tag=f'Team {i+1}', color=(0, 0, 0))
+            dpg.draw_text((185+350*i, 90), str(score_values[i-1]), size=60, tag=f"Teamscore {i+1}", color=(0, 0, 0))
+
+
     dpg.show_viewport()
 
     while dpg.is_dearpygui_running():

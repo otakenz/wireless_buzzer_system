@@ -199,7 +199,7 @@ def process_score_input():
             log_info(f"Group {winner_id} is getting {points} points!")
             update_score(winner_id, points)
         else:
-            log_info(f"Invalid Group number! Please try again")
+            log_info(f"Invalid winner id {winner_id}! Please try again")
     else:
         log_info(f"Invalid input! Please try again")
 
