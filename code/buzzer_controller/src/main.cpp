@@ -40,13 +40,14 @@ int regSlavesCnt = 0;
 String SSID = "";
 int32_t RSSI = 0;
 String BSSIDstr = "";
+bool scanList[NUMSLAVES] = {false, false, false, false, false};
 
-const String buttons_ssid[] = {"54:32:04:87:B5:A4", "54:32:04:87:B2:B0",
-                               "54:32:04:89:06:8C", "54:32:04:87:4C:EC",
-                               "64:E8:33:80:BE:FC"};
-/* const String buttons_ssid[] = {"54:32:04:89:27:E4", "54:32:04:87:27:C4", */
-/*                                "54:32:04:87:27:CC", "54:32:04:87:27:DC", */
-/*                                "54:32:04:87:27:EC"}; */
+/* const String buttons_ssid[] = {"54:32:04:87:B5:A4", "54:32:04:87:B2:B0", */
+/*                                "54:32:04:89:06:8C", "54:32:04:87:4C:EC", */
+/*                                "64:E8:33:80:BE:FC"}; */
+const String buttons_ssid[] = {"54:32:04:89:27:E4", "54:32:04:87:27:C4",
+                               "54:32:04:87:27:CC", "54:32:04:87:27:DC",
+                               "54:32:04:87:27:EC"};
 
 constexpr uint8_t broadcast_mac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -198,6 +199,7 @@ void ScanForSlave() {
 
   uint8_t count = 0;
 
+  // processing this current scan results
   for (int i = 0; i < scanResults; ++i) {
     // Print SSID and RSSI for each device found
     SSID = WiFi.SSID(i);
@@ -232,19 +234,28 @@ void ScanForSlave() {
       continue;
     }
 
+    // Check if the current device is already paired with the master.
     for (uint8_t i = 0; i < NUMSLAVES; i++) {
       auto slaveFound = compareMacAddress(mac, pcData.buttons_mac[i]);
       if (slaveFound) {
         println("Slave no " + String(i) + " found");
         pcData.RSSI[i] = RSSI;
         pcData.status[i] = 1;
-      } else {
-        println("Slave no " + String(i) + " not found");
-        pcData.RSSI[i] = 0;
-        pcData.status[i] = 0;
+        scanList[i] = true;
+        break;
       }
     }
   }
+
+  for (uint8_t i = 0; i < NUMSLAVES; i++) {
+    if (!scanList[i]) {
+      println("Slave no " + String(i) + " not found");
+      pcData.RSSI[i] = 0;
+      pcData.status[i] = 0;
+    }
+    scanList[i] = false;
+  }
+
   if (count == 0) {
     // If none of slaves found, reset the RSSI and status
     for (uint8_t i = 0; i < NUMSLAVES; i++) {
