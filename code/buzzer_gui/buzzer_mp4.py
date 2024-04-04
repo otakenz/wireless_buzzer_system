@@ -74,6 +74,8 @@ def main(args):
     cv2.destroyAllWindows()
     # end of magic
 
+    print("Started MP4 player")
+
     while True:
         message = socket.recv_string()
         print("Received: ", message)

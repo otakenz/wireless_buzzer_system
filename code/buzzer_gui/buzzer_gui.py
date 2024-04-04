@@ -9,7 +9,7 @@ import re
 
 serial_port = None  # Store the serial port object
 winner_id = 0
-button_state = False # Initialized with Locked
+lock = False # Initialized with Locked
 
 online_bg_color = (128, 128, 128)
 offline_bg_color = (50, 50, 50)
@@ -94,16 +94,16 @@ def on_port_select_button_click():
         log_error(f"Failed to open serial port: {selected_port}")
 
 def on_locking_click(sender):
-    global button_state, serial_port
+    global lock, serial_port
 
     if not (serial_port is not None and serial_port.is_open):
         log_info("Serial port already opened")
         return
 
-    button_state = not button_state
+    lock = not lock
 
-    # button_state will be False after Locked, True after Unlocked
-    if button_state:
+    # lock will be False after Locked, True after Unlocked
+    if lock:
         dpg.configure_item(sender, label="Unlocked")
         serial_port.write(b'u')
         log_debug("Unlocked")
@@ -164,7 +164,7 @@ def on_ping_button_clicked(sender):
             log_warning(f"Serial port not open, unable to ping button {id}")
 
 def on_reset_click():
-    global winner_id, button_state
+    global winner_id, lock
     if not (serial_port is not None and serial_port.is_open):
         return
 
@@ -172,11 +172,11 @@ def on_reset_click():
     winner_id = 0
     log_info("Resetting game")
     for i in range(1, len(buttons_info)+1):
-        if buttons_info[i]['SSID'] != "00:00:00:00:00:00":
+        if buttons_info[i]['SSID'] != "None":
             log_debug(f"Resetting button {i}")
             dpg.configure_item(f'button_shape_{i}', color=online_bg_color, fill=online_bg_color)
             dpg.configure_item("Lock/Unlock", label="Locked")
-            button_state  = False
+            lock  = False
             serial_port.write(b'l')
 
 # def on_scan_click(sender, app_data, user_data):
@@ -192,7 +192,10 @@ def on_scan_click():
 def process_score_input():
     points = dpg.get_value("Input Field")
 
-    if re.match(r'^-?\d+$', points):
+    points_only_pattern = r'^-?\d+$'
+    points_group_pattern = r'^\d+,-?\d+$'
+
+    if re.match(points_only_pattern, points):
         if dpg.is_item_hovered("Minus"):
             points = -int(points)
         if 1 <= int(winner_id) <= 5:
@@ -200,6 +203,15 @@ def process_score_input():
             update_score(winner_id, points)
         else:
             log_info(f"Invalid winner id {winner_id}! Please try again")
+    elif re.match(points_group_pattern, points):
+        group, points = points.split(",")
+        if dpg.is_item_hovered("Minus"):
+            points = -int(points)
+        if 1 <= int(group) <= 5:
+            log_info(f"Group {group} is getting {points} points!")
+            update_score(group, points)
+        else:
+            log_info(f"Invalid group {group}! Please try again")
     else:
         log_info(f"Invalid input! Please try again")
 
@@ -243,6 +255,7 @@ def scanning_buttons():
             dpg.configure_item(f'button_rssi_{i}', text=f"RSSI: {buttons_info[i]['RSSI']}")
             dpg.configure_item(f'button_battery_{i}', text=f"Battery: {buttons_info[i]['BAT']}")
         else:
+            buttons_info[i]['SSID'] = "None"
             log_debug(f"Button {i} is offline")
             dpg.configure_item(f'button_shape_{i}', color=offline_bg_color, fill=offline_bg_color)
             dpg.configure_item(f'button_status_{i}', text=f"Status: Offline")
@@ -305,7 +318,7 @@ def main(args):
     with dpg.window(label="Score Input", width=800, height=100, pos=(0, 400), no_close=True):
         dpg.add_text("Input the points to be added or deducted")
         with dpg.group(horizontal=True):
-            dpg.add_input_text(tag="Input Field", width=400)
+            dpg.add_input_text(tag="Input Field", width=400, on_enter=True, hint="Group,Points or Points only", callback=process_score_input)
             dpg.add_button(label="+", tag="Plus", height=40, width=100, callback=process_score_input)
             dpg.add_button(label="-", tag="Minus", height=40, width=100, callback=process_score_input)
 
@@ -323,8 +336,8 @@ def main(args):
     while dpg.is_dearpygui_running():
         # insert here any code you would like to run in the render loop
         update_ports_combo()
-        if button_state:
-            # log_debug(f"Button state {button_state}")
+        if lock:
+            # log_debug(f"Button state {lock}")
             update_button_status()
         # scanning_buttons()
         dpg.render_dearpygui_frame()
