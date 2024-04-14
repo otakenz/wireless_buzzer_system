@@ -11,7 +11,7 @@
 #include <esp_wifi.h> // only for esp_wifi_set_channel()
 #include <sys/types.h>
 
-#define CHANNEL 1
+#define CHANNEL 11
 
 // xiao setting
 #define LED_PIN 7
